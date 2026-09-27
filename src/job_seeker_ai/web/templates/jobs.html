@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block content %}
+  <h1>Jobs ({{ jobs|length }})</h1>
+
+  <form class="filters" method="get">
+    <label>status
+      <select name="status">
+        <option value="" {{ 'selected' if filters.status == '' }}>both</option>
+        <option value="active" {{ 'selected' if filters.status == 'active' }}>active</option>
+        <option value="invalidated" {{ 'selected' if filters.status == 'invalidated' }}>invalidated</option>
+        <option value="rejected" {{ 'selected' if filters.status == 'rejected' }}>rejected</option>
+      </select>
+    </label>
+    <button type="submit">Filter</button>
+    <span class="hint" title="Newest first, by when the job was added to the database">order: Added &darr;</span>
+  </form>
+
+  <table>
+    <tr>
+      <th>title</th><th>company</th><th>location</th><th>salary</th>
+      <th>deal_breakers</th><th>posted</th><th>added</th><th>sources</th><th>status</th><th></th>
+    </tr>
+    {% for job in jobs %}
+    <tr class="{{ job.status }}">
+      <td><a class="title" href="/jobs/{{ job.job_id }}?back=%2F%3F{{ querystring | urlencode }}">{{ job.title }}</a></td>
+      <td>{{ job.company }}</td>
+      <td>{{ job.location }}</td>
+      <td>{{ job.salary or '' }}</td>
+      <td>
+        {#- verdict: 1 fails a deal breaker, 0 passes, NULL not evaluated yet.
+            Anything unrecognised falls to Pending rather than claiming a pass. -#}
+        {% if job.deal_breakers_result == 0 %}
+          <span class="pill pill--ok" title="Passes every deal breaker">OK</span>
+        {% elif job.deal_breakers_result == 1 %}
+          <span class="pill pill--fail" title="Fails at least one deal breaker">Fail</span>
+        {% else %}
+          <span class="pill pill--pending" title="Not evaluated yet">Pending</span>
+        {% endif %}
+      </td>
+      <td>{{ job.posted }}</td>
+      <td>{{ job.scraped_at }}</td>
+      <td>
+        {% for site, url in sources.get(job.job_id, []) %}
+          <a href="{{ url }}" target="_blank">{{ site }}</a><br>
+        {% endfor %}
+      </td>
+      <td>{{ job.status }}</td>
+      <td>
+        {% if job.status != 'invalidated' %}
+        <form class="inline" method="post" action="/jobs/{{ job.job_id }}/invalidate?back=%2F%3F{{ querystring | urlencode }}">
+          <button type="submit">invalidate</button>
+        </form>
+        {% else %}
+        <form class="inline" method="post" action="/jobs/{{ job.job_id }}/reactivate?back=%2F%3F{{ querystring | urlencode }}">
+          <button type="submit">reactivate</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+{% endblock %}

@@ -1,0 +1,44 @@
+body { font-family: -apple-system, Segoe UI, sans-serif; margin: 0; padding: 2rem; background: #f7f7f9; color: #222; }
+h1 { font-size: 1.4rem; margin-bottom: 1rem; }
+
+/* the detail page renders its h1 inside a .card, which tightens it */
+.card h1 { margin: 0 0 .2rem; font-size: 1.5rem; }
+
+/* --- list page --------------------------------------------------------- */
+form.filters { background: #fff; border-radius: 10px; padding: .8rem 1.2rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); display: flex; gap: 1.2rem; align-items: center; flex-wrap: wrap; }
+form.filters label { font-size: .85em; color: #555; }
+form.filters input, form.filters select { margin-left: .3rem; padding: .25rem .4rem; border: 1px solid #ddd; border-radius: 5px; }
+form.filters button { padding: .4rem 1rem; border: none; border-radius: 6px; background: #2d6cdf; color: #fff; cursor: pointer; }
+form.filters button:hover { background: #1f56b8; }
+form.filters .hint { font-size: .8em; color: #888; }
+
+table { border-collapse: separate; border-spacing: 0; width: 100%; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+th, td { padding: 8px 10px; font-size: 0.88em; vertical-align: top; text-align: left; border-bottom: 1px solid #eee; }
+th { background: #fafafa; color: #666; text-transform: uppercase; font-size: .75em; letter-spacing: .03em; }
+tr:hover td { background: #f5f8ff; }
+tr.invalidated, tr.rejected { opacity: 0.45; }
+
+a.title { color: #2d6cdf; text-decoration: none; font-weight: 600; }
+a.title:hover { text-decoration: underline; }
+
+form.inline { display: inline; }
+form.inline button { padding: .25rem .6rem; border-radius: 5px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
+form.inline button:hover { background: #eee; }
+
+/* --- deal-breaker verdict pills ----------------------------------------
+   One modifier per state of jobs.deal_breakers_result:
+     0 -> .pill--ok       1 -> .pill--fail     NULL -> .pill--pending       */
+.pill { display: inline-block; min-width: 58px; text-align: center; padding: .18rem .5rem; border-radius: 999px; border: 1px solid transparent; font-size: .8em; font-weight: 600; }
+.pill--ok { background: #e7f5ec; color: #14653a; border-color: #b6e0c5; }
+.pill--fail { background: #fdecec; color: #a4231c; border-color: #f3c3bf; }
+.pill--pending { background: #eef0f2; color: #5a6672; border-color: #d7dde2; }
+
+/* --- detail page ------------------------------------------------------- */
+a.back { color: #555; text-decoration: none; font-size: 0.9em; }
+a.back:hover { text-decoration: underline; }
+.card { background: #fff; border-radius: 10px; padding: 1.5rem 2rem; margin-top: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.08); max-width: 900px; }
+h2.company { margin: 0 0 1rem; font-weight: normal; color: #555; }
+.field { margin-bottom: 1rem; }
+.field dt { font-size: .8em; text-transform: uppercase; letter-spacing: .04em; color: #888; margin-bottom: .2rem; }
+.field dd { margin: 0; white-space: pre-wrap; }
+a.url { word-break: break-all; }

@@ -1,0 +1,8 @@
+cryptocurrency
+blockchain
+consultancy
+contractor
+forward deployed
+body rental
+rockstar
+ninja

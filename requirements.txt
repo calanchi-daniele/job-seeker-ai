@@ -1,0 +1,21 @@
+# Convenience mirror of pyproject.toml for a plain `pip install -r`.
+#
+# This is NOT a lock file: it uses lower bounds, not exact pins. For a
+# reproducible environment run:
+#     pip freeze > requirements.lock.txt
+#
+# Scrape + enrich steps:
+camoufox>=0.4
+playwright>=1.40
+openai>=1.50
+pydantic>=2.0
+
+# Review website (optional step 4):
+fastapi>=0.110
+uvicorn[standard]>=0.30
+jinja2>=3.1
+
+# Development / tests:
+pytest>=8.0
+ruff>=0.5
+httpx>=0.27

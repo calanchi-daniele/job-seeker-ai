@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ job.title }} @ {{ job.company }}{% endblock %}
+{% block content %}
+  <a class="back" href="{{ back }}">&larr; back to list</a>
+  <div class="card">
+    <h1>{{ job.title }}</h1>
+    <h2 class="company">{{ job.company }} — {{ job.location }}</h2>
+    <dl>
+      {% for label, value in [
+        ("Status", job.status), ("Posted", job.posted), ("Added", job.scraped_at), ("Enriched at", job.enriched_at),
+        ("Salary (posting)", job.salary),
+        ("Deal Breakers reason", job.deal_breakers_reason),
+        ("Filter reason", job.filter_reason),
+        ("Extra fields", job.extra_fields), ("Norm key", job.norm_key),
+      ] %}
+      <div class="field"><dt>{{ label }}</dt><dd>{{ value if value else '—' }}</dd></div>
+      {% endfor %}
+      <div class="field"><dt>Sources</dt><dd>
+        {% for site, url in sources %}<a class="url" href="{{ url }}" target="_blank">{{ site }}: {{ url }}</a><br>{% endfor %}
+        {% if not sources %}—{% endif %}
+      </dd></div>
+      <div class="field"><dt>Description</dt><dd>{{ job.description or '—' }}</dd></div>
+    </dl>
+  </div>
+{% endblock %}

@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "job-seeker-ai"
+version = "0.1.0"
+description = "Local-first LinkedIn job pipeline: scrape, hard-filter, LLM-enrich, then review in a browser."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Daniele", email = "calanchid@gmail.com" }]
+keywords = ["jobs", "scraping", "linkedin", "llm", "local-first"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+]
+
+# Runtime deps of the scrape + enrich steps. The review website is an
+# optional extra so a headless pipeline install stays small.
+dependencies = [
+    "camoufox>=0.4",
+    "playwright>=1.40",
+    "openai>=1.50",
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+web = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+    # the web extra, duplicated: pip extras cannot reference each other, and
+    # the web route tests need these to actually run instead of skipping
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+    "httpx>=0.27",
+]
+
+[project.scripts]
+job-seeker-ai = "job_seeker_ai.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+job_seeker_ai = ["web/templates/*.html", "web/static/css/*.css"]
+
+[tool.pytest.ini_options]
+testpaths = ["src/tests"]
+# lets the suite run from a fresh clone without an editable install
+pythonpath = ["src"]
+addopts = "-ra"
+
+[tool.ruff]
+# 120 rather than 100: several lines are verbatim carried-over strings (SQL
+# in storages.py, progress prints in linkedin.py) that read worse split.
+line-length = 120
+target-version = "py310"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# DEAL_BREAKERS_PROMPT is verbatim prompt text sent to the model, so its line
+# lengths cannot be reflowed without changing model input - and a trailing
+# `# noqa` inside the triple-quoted string would become part of the prompt.
+"src/job_seeker_ai/evaluators.py" = ["E501"]

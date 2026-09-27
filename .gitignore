@@ -1,0 +1,36 @@
+# NOTE: .gitignore only supports full-line comments. A '#' appended to a
+# pattern is part of the pattern, not a comment -- that silently un-ignores
+# the file. Keep every comment on its own line.
+
+# runtime state (never commit)
+state.json
+*.db
+*.db-wal
+*.db-shm
+.env
+
+# secrets / personal data
+*CV.txt
+
+# python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# editors / os
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# agent scratch (Reasonix session data, not project source)
+.reasonix/

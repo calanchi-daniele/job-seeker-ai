@@ -1,0 +1,31 @@
+{
+  "_legend": {
+    "_comment": "JSON has no comments, so fixed value lists live here. keywords/location/pages are free text, everything else must use one of these exact strings.",
+    "work_type": ["onsite", "remote", "hybrid"],
+    "posted_within": ["day", "week", "month"],
+    "employment_type": ["full_time", "part_time", "contract", "temporary", "internship", "volunteer", "other"],
+    "experience_levels": ["internship", "entry", "associate", "mid_senior", "director", "executive"]
+  },
+  "searches": [
+    {
+      "name": "backend-eu",
+      "pages": 2,
+      "params": { "keywords": "backend developer OR backend engineer", "location": "European Union", "work_type": "remote", "posted_within": "month", "employment_type": "full_time" }
+    },
+    {
+      "name": "dotnet-eu",
+      "pages": 2,
+      "params": { "keywords": ".NET", "location": "European Union", "work_type": "remote", "posted_within": "month", "employment_type": "full_time" }
+    },
+    {
+      "name": "product-eu",
+      "pages": 2,
+      "params": { "keywords": "product developer OR product engineer", "location": "European Union", "work_type": "remote", "posted_within": "month", "employment_type": "full_time"}
+    },
+    {
+      "name": "platform-eu",
+      "pages": 2,
+      "params": { "keywords": "platform developer OR platform engineer", "location": "European Union", "work_type": "remote", "posted_within": "month", "employment_type": "full_time"}
+    }
+  ]
+}

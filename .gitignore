@@ -34,3 +34,4 @@ Thumbs.db
 
 # agent scratch (Reasonix session data, not project source)
 .reasonix/
+models

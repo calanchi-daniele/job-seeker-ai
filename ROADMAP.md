@@ -26,19 +26,16 @@ contract in [`scrapers/base.py`](src/job_seeker_ai/scrapers/base.py) — `SITE`,
 
 ## Enrichment
 
-### Pluggable LLM backends
+### Cheaper, faster evaluation
 
-[`llm_clients.py`](src/job_seeker_ai/llm_clients.py) is the single module that
-talks to a model. It drives LM Studio over its OpenAI-compatible endpoint today;
-the next step is making the backend selectable behind the same interface.
+[`llm_clients.py`](src/job_seeker_ai/llm_clients.py) is a single OpenAI-compatible
+client, so which model answers is already a `.env` change and not a code change.
+What is left sits around the call itself.
 
-- **Local Ollama** — a second local runtime, keeping the pipeline
-  credential-free and fully offline.
-- **Online API calls** — for the postings worth a hosted model, with the key read
-  from the environment.
-- Backend selection joins the environment overrides already in
-  [`config.py`](src/job_seeker_ai/config.py) (`LLM_BASE_URL`, `LLM_API_KEY`,
-  `LLM_MODEL`), so a run picks its model without code changes.
+- **Retry with backoff on rate limits**, so a burst that trips a 429 continues
+  instead of leaving the rest of that batch pending for the next pass.
+- **Per-run endpoint and model on the command line**, so a one-off `enrich` can
+  use a different model without editing `.env` first.
 
 ## Review site
 

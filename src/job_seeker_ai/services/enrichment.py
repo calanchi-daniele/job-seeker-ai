@@ -1,9 +1,13 @@
-"""Step 3: evaluate pending jobs with the local LLM and store the verdicts.
+"""Step 3: evaluate pending jobs with the model API and store the verdicts.
 
-Owns the whole lifecycle so a single command is enough: load the model, walk
-the pending jobs, save each result, unload the model. The unload happens in a
-``finally`` block because a half-finished run must not leave a model
-resident in RAM.
+One command does a whole pass: check the client configuration, walk the pending
+jobs, save each verdict, then reconcile statuses. There is no lifecycle to own -
+the endpoint is external and stays up between runs - so an interrupted pass
+leaves nothing running behind it.
+
+Evaluations are fanned out concurrently - ``config.LLM_MAX_CONCURRENCY`` of them
+at a time - because each one is a short round trip to an HTTP endpoint. Database
+writes are serialised, so the concurrency is confined to the model calls.
 
 The pass then reconciles statuses: no job may stay ``active`` while it fails a
 deal breaker, so the model's verdict takes effect in the same command instead
@@ -16,9 +20,9 @@ they used to feed) were removed to keep the project lean; re-add them together
 with the code that populates them.
 """
 
-import time
+import asyncio
 
-from job_seeker_ai import evaluators, llm_clients, repositories
+from job_seeker_ai import config, evaluators, llm_clients, repositories
 from job_seeker_ai.exceptions import EnrichmentError
 from job_seeker_ai.storages import connect
 
@@ -34,14 +38,16 @@ DEAL_BREAKERS_FAILED = 1
 DEAL_BREAKERS_PASSED = 0
 
 
-def enrich_jobs():
+async def enrich_jobs():
     """Evaluate everything pending, then take the failures out of the running."""
+    llm_clients.check_config()
+
     con = connect()
     jobs = repositories.get_pending_jobs(con)
     con.close()
 
     if jobs:
-        _enrich_pending(jobs)
+        await _enrich_pending(jobs)
     else:
         print("nothing pending. run: python -m job_seeker_ai filter (if not run yet), then python -m job_seeker_ai run")
 
@@ -50,28 +56,46 @@ def enrich_jobs():
     _invalidate_deal_breaker_failures()
 
 
-def _enrich_pending(jobs):
-    """Evaluate each job in turn, saving verdicts as they arrive."""
-    succeeded = failed = 0
-    for j in jobs:
+async def _enrich_pending(jobs):
+    """Evaluate the pending jobs concurrently, then report the outcome.
+
+    Everything is queued at once and the semaphore decides how many are in
+    flight, so the fast jobs do not wait behind the slow ones.
+    """
+    limit = config.LLM_MAX_CONCURRENCY
+    print(f"Evaluating {len(jobs)} job(s), {limit} at a time")
+
+    semaphore = asyncio.Semaphore(limit)
+    db_lock = asyncio.Lock()
+
+    saved = await asyncio.gather(*(_evaluate_and_save(j, semaphore, db_lock) for j in jobs))
+
+    succeeded = sum(1 for was_saved in saved if was_saved)
+    print(f"\n{succeeded} enriched, {len(jobs) - succeeded} left pending out of {len(jobs)}")
+
+
+async def _evaluate_and_save(job, semaphore, db_lock) -> bool:
+    """Evaluate one job and store its verdict. ``False`` means left pending.
+
+    Only the semaphore limits how long this waits, so a single failure never
+    blocks or discards the others.
+    """
+    async with semaphore:
         try:
-            res = evaluators.evaluate_deal_breakers(j)
+            res = await evaluators.evaluate_deal_breakers(job)
         except EnrichmentError as e:
-            # No verdict: leave the row completely untouched so it stays
-            # pending and is retried on the next pass. Previously this stored a
-            # NULL verdict and stamped enriched_at, which hid the job from
-            # every later pass forever.
-            failed += 1
-            print(f"  !! no verdict for {j['job_id']}, left pending: {e}")
-            continue
+            # No verdict: leave the row completely untouched so it stays pending
+            # and is retried on the next pass. Storing a NULL verdict and
+            # stamping enriched_at would hide the job from every later pass.
+            print(f"  !! no verdict for {job['job_id']}, left pending: {e}")
+            return False
 
         if "fails_deal_breakers" not in res:
-            # Defensive: an absent verdict must never be stored, because the
-            # only values this column has are "failed" and "passed" - writing
-            # either would be inventing a result.
-            failed += 1
-            print(f"  !! no verdict for {j['job_id']}, left pending: response had no fails_deal_breakers")
-            continue
+            # Defensive: an absent verdict must never be stored, because the only
+            # values this column has are "failed" and "passed" - writing either
+            # would be inventing a result.
+            print(f"  !! no verdict for {job['job_id']}, left pending: response had no fails_deal_breakers")
+            return False
 
         # 1 = fails, 0 = passes (the review site's pills depend on this).
         verdict = DEAL_BREAKERS_FAILED if res["fails_deal_breakers"] else DEAL_BREAKERS_PASSED
@@ -80,17 +104,20 @@ def _enrich_pending(jobs):
         if isinstance(deal_breakers, list):
             deal_breakers = "\n".join(f"{x.criterion}: {x.score} - {x.reason}" for x in deal_breakers)
 
-        data = (verdict, deal_breakers, j["job_id"])
+        data = (verdict, deal_breakers, job["job_id"])
 
-        con = connect()
-        if repositories.save_job_data(con, data, ENRICHED_FIELDS):
-            succeeded += 1
-            print(f"  -> Saved (deal_breakers_result: {verdict}, reasons: \n{deal_breakers}\n)")
+        # Serialised: the model calls are what benefit from running together, and
+        # one writer at a time keeps SQLite out of the picture entirely.
+        async with db_lock:
+            con = connect()
+            stored = repositories.save_job_data(con, data, ENRICHED_FIELDS)
+            con.close()
+
+        if stored:
+            print(f"  -> Saved {job['job_id']} (deal_breakers_result: {verdict})")
         else:
-            print(f"  !! Failed to update DB for {j['job_id']}")
-        con.close()
-
-    print(f"\n{succeeded} enriched, {failed} left pending out of {len(jobs)}")
+            print(f"  !! Failed to update DB for {job['job_id']}")
+        return stored
 
 
 def _invalidate_deal_breaker_failures():
@@ -101,14 +128,3 @@ def _invalidate_deal_breaker_failures():
 
     if invalidated:
         print(f"{invalidated} invalidated for failing a deal breaker")
-
-
-def start_enrich_process():
-    """Load the model, enrich everything pending, always unload afterwards."""
-    try:
-        llm_clients.stop_agent()
-        llm_clients.start_agent()
-        enrich_jobs()
-    finally:
-        time.sleep(3)
-        llm_clients.stop_agent()

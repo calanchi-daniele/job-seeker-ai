@@ -4,9 +4,9 @@ Kept intentionally small. A single base class lets callers that only care
 about "something in this package failed" use one ``except`` clause, while
 specific subclasses let the CLI report what actually went wrong.
 
-Each subclass marks a different way the pipeline can fail: a scrape that gave
-up, a browser that is not there, and an evaluation that produced no verdict.
-None of them may be mistaken for success.
+Each subclass marks a different way the pipeline can fail: a scrape that gave up,
+a browser that is not there, a model client that was never configured, and an
+evaluation that produced no verdict. None of them may be mistaken for success.
 """
 
 
@@ -24,6 +24,14 @@ class BrowserNotInstalledError(JobSeekerError):
     ``pip install camoufox`` installs the Python wrapper only; the browser is a
     separate download. This is an environment problem, not a scrape failure, so
     it gets its own type - and a message telling the user what to run.
+    """
+
+
+class LLMConfigError(JobSeekerError):
+    """The model API client is not configured well enough to send a request.
+
+    Distinct from ``EnrichmentError``: this one means no request was ever
+    attempted, so not a single job was evaluated and nothing was billed.
     """
 
 

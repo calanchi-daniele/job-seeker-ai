@@ -4,18 +4,26 @@ Turns one pending job plus ``criteria/deal_breakers.md`` into a structured
 verdict. The model is asked for a typed object rather than free text so the
 result can be stored without a parsing layer.
 
+Nothing here knows which endpoint answers. ``llm_clients.complete_structured``
+owns the endpoint, the credential and the provider quirks, so this module only
+builds the prompt and interprets the verdict.
+
 The prompt deliberately asks for verbatim quotes: it is easier to spot a
-hallucinated verdict when the model has to cite the posting.
+hallucinated verdict when the model has to cite the posting. It also spells out
+the JSON shape, because an endpoint without strict structured outputs falls back
+to ``json_object`` mode, where the schema is a request rather than a constraint.
+
+The call is ``async`` so the enrichment pass can run several at once; how many is
+``config.LLM_MAX_CONCURRENCY``, and the fan-out itself lives in
+``services/enrichment.py``.
 """
 
-import json
 import time
 
 from pydantic import BaseModel, Field
 
-from job_seeker_ai import config, criteria_loaders
+from job_seeker_ai import criteria_loaders, llm_clients
 from job_seeker_ai.exceptions import EnrichmentError
-from job_seeker_ai.llm_clients import client
 
 DEAL_BREAKERS_PROMPT = """You are a strict job filtering assistant.
 Read the job description and evaluate it against the Deal Breakers below.
@@ -31,6 +39,11 @@ Allowable scores: 0 (Does not meet), 1 (Partial or no evidence found), 2 (Fully 
 --- CRITICAL FORMATTING RULE ---
 1. For DealBreakerItem.reason, provide ONLY the verbatim sentence or direct factual quote from the job posting. 
 2. Do NOT append explanations such as "which satisfies rule X" or "violating deal breaker Y".
+
+--- OUTPUT FORMAT ---
+Reply with one JSON object and nothing else, with a single key "deal_breakers"
+holding one entry per rule. Each entry has "criterion" (the rule name), "score"
+(an integer) and "reason" (the quote).
 """
 
 
@@ -48,10 +61,11 @@ class DealBreakersEvaluation(BaseModel):
     )
 
 
-def evaluate_deal_breakers(job_data: dict) -> dict:
+async def evaluate_deal_breakers(job_data: dict) -> dict:
     """Evaluate one job and return its deal-breaker verdict.
 
-    Raises ``EnrichmentError`` when no usable verdict could be produced. It
+    Await it: the request is asynchronous so the caller can run several at once.
+    Raises ``EnrichmentError`` when no usable verdict could be produced - it
     previously returned a ``{"success": False, ...}`` sentinel that the caller
     stored as an empty result, which marked the job as enriched and stopped it
     from ever being retried.
@@ -61,14 +75,14 @@ def evaluate_deal_breakers(job_data: dict) -> dict:
                     DESCRIPTION:
                     {job_data["description"]}"""
 
-    print(f"\nEvaluating deal breakers: {job_data['title']} @ {job_data['company']}...")
+    print(f"Evaluating deal breakers: {job_data['title']} @ {job_data['company']}...")
 
     start_time = time.perf_counter()
 
     try:
-        response = client.chat.completions.parse(
-            model=config.LLM_MODEL,
-            messages=[
+        parsed_result = await llm_clients.complete_structured(
+            DealBreakersEvaluation,
+            [
                 {
                     "role": "system",
                     "content": DEAL_BREAKERS_PROMPT.format(deal_breakers=criteria_loaders.load_deal_breakers()),
@@ -76,24 +90,13 @@ def evaluate_deal_breakers(job_data: dict) -> dict:
                 {"role": "user", "content": dynamic_input},
             ],
             temperature=0.1,
-            max_tokens=200,
-            response_format=DealBreakersEvaluation,
-            extra_body={"enable_thinking": False},
+            max_tokens=2000,
         )
-
-        raw_message = response.choices[0].message
-
-        if raw_message.parsed:
-            parsed_result = raw_message.parsed
-        else:
-            # Fallback: the model put the JSON in reasoning_content instead.
-            parsed_dict = json.loads(raw_message.reasoning_content)
-            parsed_result = DealBreakersEvaluation(**parsed_dict)
     except Exception as e:
         raise EnrichmentError(f"deal-breaker evaluation failed for job {job_data['job_id']}: {e}") from e
 
-    end_time = time.perf_counter()
-    print(f"Evaluation time: {end_time - start_time:.2f} seconds")
+    elapsed = time.perf_counter() - start_time
+    print(f"  {job_data['job_id']}: evaluated in {elapsed:.2f}s")
 
     has_failing_score = any(int(item.score) == 0 for item in parsed_result.deal_breakers)
 

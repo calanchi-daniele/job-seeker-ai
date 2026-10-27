@@ -91,20 +91,21 @@ Results are written as a status change plus `filter_reason` — never a delete,
 so the review site can still show why something was dismissed. Already-filtered
 jobs are not re-evaluated (`filtered_at`), so `--dry-run` is safe to repeat.
 
-## 3. `enrich` — local LLM
+## 3. `enrich` — model API
 
 ```bash
 python -m job_seeker_ai enrich
 ```
 
-Fully automated, no cloud keys. One command does the whole lifecycle:
+One command does a whole pass:
 
-1. `lms unload` (clean slate), then `lms load <model> --gpu max`
-2. `lms server start`
-3. evaluate every pending active job
-4. invalidate every active job that failed a deal breaker (see below)
-5. `lms server stop` + `lms unload` in a `finally`, so a crash cannot leave a
-   model resident in RAM
+1. check that `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL` are set, and stop
+   before spending anything if they are not
+2. evaluate every pending active job
+3. invalidate every active job that failed a deal breaker (see below)
+
+Nothing is loaded, served or supervised here: the endpoint is external and stays
+up between runs, so an interrupted pass leaves nothing running behind it.
 
 Pending means `enriched_at IS NULL AND status = 'active'` — so the filter step
 reduces what the model has to read, and invalidating a job in the review site
@@ -115,6 +116,48 @@ message (the posting). The reply is parsed into a typed
 `DealBreakersEvaluation` rather than free text, so it stores directly. The
 prompt demands verbatim quotes: a hallucinated verdict is easier to catch when
 the model has to cite the posting.
+
+### Evaluating in parallel
+
+The evaluations can be fanned out concurrently - `LLM_MAX_CONCURRENCY` of them at
+a time, 1 by default. The whole pending set is queued at once and a semaphore
+decides how much runs together, so a slow posting does not hold up the ones
+behind it.
+
+- **Database writes are serialised** with a lock. The concurrency is confined to
+  the model calls; one writer at a time keeps SQLite out of the picture
+  entirely, at a cost measured in microseconds against multi-second inference.
+- **The default of 1 is the polite setting, not the fast one.** It keeps requests
+  strictly sequential, which is what a rate-limited key wants; raise it when the
+  endpoint tolerates parallel requests.
+- One failed evaluation never blocks or discards the others: it is reported, left
+  pending and retried on the next pass, while its siblings are still saved.
+
+### The model API
+
+Step 3 is a plain OpenAI-compatible client. `llm_clients.py` holds a single
+`AsyncOpenAI` pointed at `LLM_BASE_URL`, and nothing in this project loads a
+model, holds weights, or starts, watches or stops a process: the endpoint is yours
+to run.
+
+Three settings are required, and there is deliberately no default endpoint -
+aiming the pipeline at a provider has to be something you asked for by name, so a
+missing value is reported before the first request instead of quietly choosing an
+API for you. `llm_clients.check_config()` enforces that, called from
+`enrichment.enrich_jobs()` at the top of every pass.
+
+`llm_clients.complete_structured()` is the only place a request leaves the
+project, and it normalises the one difference that matters:
+
+- **A rejected schema falls back to plain JSON.** The first attempt asks for a
+  strict `json_schema`; a host that cannot honour it is retried once with
+  `json_object`, which specifies no fields of its own, so that attempt also gets
+  an example of the desired shape in the prompt - DeepSeek's documentation spells
+  the requirement out, and other hosts behave the same way. The reply is still
+  validated here rather than failing the job.
+
+Everything else on the wire is standard OpenAI - model, messages, temperature and
+`max_tokens` - with no provider-specific `extra_body`.
 
 ### The end-of-pass reconciliation
 
@@ -136,9 +179,6 @@ Three consequences worth knowing:
   filter already ruled out keeps a status that says why.
 
 The count is reported at the end of the run, next to the enrichment summary.
-
-Needs the LM Studio `lms` CLI on `PATH`. `LLM_MODEL` defaults to `qwen3.8-27b`;
-override it per machine.
 
 If a call fails or returns no usable verdict, the job is left **completely
 untouched** and stays pending for the next pass, rather than being marked

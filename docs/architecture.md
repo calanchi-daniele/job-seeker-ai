@@ -21,7 +21,7 @@ job_seeker_ai/
 │   │   ├── parsers.py         salary / interview / dedupe-key extraction
 │   │   ├── criteria_loaders.py  reads criteria/*.md
 │   │   ├── filters.py         pure word-filter verdicts
-│   │   ├── llm_clients.py     LM Studio lifecycle + OpenAI client
+│   │   ├── llm_clients.py     the OpenAI-compatible API client
 │   │   ├── evaluators.py      deal-breaker prompt + verdict models
 │   │   ├── cli.py             argument parsing and dispatch
 │   │   ├── __main__.py        `python -m job_seeker_ai`
@@ -138,13 +138,16 @@ call to `prepare()`, not touching the adapter contract.
 | `SEARCHES_PATH` | `./searches.json` | search definitions |
 | `CRITERIA_DIR` | `./criteria` | rule files |
 | `JOBS_DB_PATH` | `./jobs.db` | the database; the documented test hook |
-| `LLM_BASE_URL` | `http://localhost:1234/v1` | LM Studio endpoint |
-| `LLM_API_KEY` | `lm-studio` | ignored by LM Studio, required by the SDK |
-| `LLM_MODEL` | `qwen3.8-27b` | local LM Studio model id |
+| `LLM_BASE_URL` | *(required)* | the OpenAI-compatible endpoint, including its version segment |
+| `LLM_API_KEY` | *(required)* | the credential for that endpoint |
+| `LLM_MODEL` | *(required)* | a model id the endpoint understands |
+| `LLM_MAX_CONCURRENCY` | `1` | evaluations in flight at once during enrichment |
 | `LI_EMAIL` / `LI_PASSWORD` | unset | optional login pre-fill |
 
-Paths resolve **once, at import**. Tests therefore set `JOBS_DB_PATH` before
-importing anything from the package — see `src/tests/conftest.py`.
+A `.env` at the project root is loaded at import, before any override is read; a
+variable exported in the real environment wins over the file. Paths resolve
+**once, at import** too, so tests set `JOBS_DB_PATH` before importing anything
+from the package — see `src/tests/conftest.py`.
 
 ## Database
 

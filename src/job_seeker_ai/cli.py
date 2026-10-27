@@ -41,10 +41,10 @@ def _cmd_filter(args):
 
 
 def _cmd_enrich(args):
-    """Step 3: local-LLM evaluation of the deal breakers."""
+    """Step 3: evaluate the deal breakers against the model API."""
     from job_seeker_ai.services import enrichment
 
-    enrichment.start_enrich_process()
+    asyncio.run(enrichment.enrich_jobs())
     return 0
 
 
@@ -77,7 +77,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_filter.add_argument("--dry-run", action="store_true", help="report rejections without writing")
     p_filter.set_defaults(handler=_cmd_filter)
 
-    p_enrich = sub.add_parser("enrich", help="evaluate pending jobs with the local LLM")
+    p_enrich = sub.add_parser("enrich", help="evaluate pending jobs against the model API")
     p_enrich.set_defaults(handler=_cmd_enrich)
 
     p_serve = sub.add_parser("serve", help="serve the review website")

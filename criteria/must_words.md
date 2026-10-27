@@ -1,5 +1,4 @@
 .NET OR C#
-remote
 product OR saas
-backend OR mobile OR platform
+backend OR mobile OR platform OR product
 senior OR staff

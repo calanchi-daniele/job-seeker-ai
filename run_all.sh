@@ -14,18 +14,25 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-PY="${PYTHON:-.venv/bin/python}"
+source .venv/bin/activate
 
 # Allows ./run_all.sh to work without an editable install. Installing with
 # `pip install -e .` makes this unnecessary.
 export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}src"
 
-"$PY" -m job_seeker_ai run "$@"
+python -m job_seeker_ai run "$@"
 echo
 echo "--- scrape done, running word filter ---"
 echo
-"$PY" -m job_seeker_ai filter
+python -m job_seeker_ai filter
 echo
-echo "--- filter done, enriching pending jobs with the local LLM ---"
+echo "--- filter done, enriching pending jobs via the model API ---"
 echo
-"$PY" -m job_seeker_ai enrich
+python -m job_seeker_ai enrich
+echo
+echo "--- enrichment done, serving the website, connect to http://localhost:8000 ---"
+echo
+python -m job_seeker_ai serve
+echo
+echo "closing environment"
+deactivate

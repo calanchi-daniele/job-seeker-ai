@@ -1,15 +1,16 @@
 # job-seeker-ai
 
 A local-first job-hunting pipeline that scrapes job postings, discards most of
-them with blunt word rules, and lets a local LLM do the rejecting you'd rather
-not do yourself. No cloud keys required: your criteria live in Markdown and your
-data never leaves the machine.
+them with blunt word rules, and lets an LLM do the rejecting you'd rather not do
+yourself. Scraping, filtering and reviewing run on this machine, your criteria
+live in Markdown, and no model is bundled here: step 3 is a thin client for an
+OpenAI-compatible endpoint you point it at.
 
 ```
 searches.json ──┐
-                ├─> [1] scrape ──> jobs.db ──> [2] filter ──> jobs.db
-criteria/*.md ──┘                     │
-                                      └─> [3] enrich ──> jobs.db ──> [4] review
+                ├─> [1] scrape ───> [2] filter ───> [3] enrich ───> [4] review
+                │         │               │              │
+criteria/*.md ──┘         └> jobs.db      └>jobs.db      └>jobs.db  
 ```
 
 Four steps, each runnable on its own, all reading and writing one SQLite file.
@@ -19,7 +20,7 @@ process.
 ## Requirements
 
 - Python **3.10+** (developed and tested on 3.12)
-- [LM Studio](https://lmstudio.ai) with the `lms` CLI on `PATH` — step 3 only
+- An OpenAI-compatible endpoint and an API key — step 3 only
 - A LinkedIn account — step 1 only
 
 The Camoufox **browser** is a separate download from the Python package. The
@@ -45,7 +46,7 @@ review site, or a bare `-e .` for the headless pipeline.
 | 0 | `login` | a browser; interactive, once |
 | 1 | `run [--headful]` | `state.json` from step 0 |
 | 2 | `filter [--dry-run]` | nothing — no LLM, no browser |
-| 3 | `enrich` | LM Studio running locally |
+| 3 | `enrich` | an OpenAI-compatible endpoint and an API key — see below |
 | 4 | `serve [--port 8000]` | nothing |
 
 Commands are invoked as `python -m job_seeker_ai <command>`, or via the
@@ -59,6 +60,35 @@ a run leaves no failing job still marked as in play.
 > **Note:** `run` also signs in interactively at startup, so a scrape cannot be
 > scheduled unattended yet.
 
+## Pointing it at a model
+
+Step 3 is an API client: it sends each posting to an OpenAI-compatible endpoint
+and stores the typed verdict that comes back. Nothing here loads weights or starts
+a server — whatever serves the model is yours to run. Three settings describe it,
+normally in `.env` at the project root (loaded at startup; a variable exported in
+the shell wins over the file):
+
+```bash
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_API_KEY=sk-...
+LLM_MODEL=gpt-4o-mini
+```
+
+All three are required, and any OpenAI-compatible endpoint works — OpenRouter,
+Together, Groq, vLLM, Ollama's `/v1`, or a gateway in front of them. Two
+deliberate choices in there:
+
+- **There is no default endpoint.** A missing value is reported before the first
+  request rather than quietly aiming your postings at somebody's API.
+- **A host without strict structured outputs still works.** The first request asks
+  for a `json_schema`; if that is rejected, it is retried once in plain JSON mode
+  with an example of the desired shape appended to the prompt, then validated
+  locally.
+
+Every posting you evaluate, together with the contents of
+`criteria/deal_breakers.md`, is sent to that endpoint — so point it at something
+you are happy to send them to.
+
 ## Configuration
 
 Everything the tool needs to know about *you* is a plain file you edit by hand:
@@ -68,8 +98,8 @@ Everything the tool needs to know about *you* is a plain file you edit by hand:
 | [`searches.json`](searches.json) | `{_legend, searches: [{name, pages, params}]}`. `keywords` and `location` are free text; `work_type`, `posted_within`, `employment_type` and `experience_levels` must use the exact values listed in the file's own `_legend`. |
 | [`criteria/must_words.md`](criteria/must_words.md) | One rule per line, `word OR word`. A job is rejected unless it matches at least one word on **every** line. |
 | [`criteria/forbidden_words.md`](criteria/forbidden_words.md) | One phrase per line. A job is rejected if any of them appears. |
-| [`criteria/deal_breakers.md`](criteria/deal_breakers.md) | Strict pass/fail rules — remote-from-Italy availability, minimum salary. Sent to the local LLM as the prompt's criteria. |
-| [`.env.example`](.env.example) | Optional overrides: `LI_EMAIL`, `LI_PASSWORD`, `JOBS_DB_PATH`, `CRITERIA_DIR`, `STATE_PATH`, `LLM_MODEL`, … Copy to `.env`. |
+| [`criteria/deal_breakers.md`](criteria/deal_breakers.md) | Strict pass/fail rules — remote-from-Italy availability, minimum salary. Sent to the model as the prompt's criteria. |
+| [`.env.example`](.env.example) | Every override: `LI_EMAIL`, `LI_PASSWORD`, `JOBS_DB_PATH`, `CRITERIA_DIR`, `STATE_PATH`, `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_MAX_CONCURRENCY`. Copy to `.env`, which is loaded at startup. |
 
 The two word lists are applied by cheap string matching with no model involved;
 only `deal_breakers.md` reaches the LLM.
@@ -89,6 +119,10 @@ real `jobs.db`. No model, no browser and no network are needed — the LLM and t
 scraper are stubbed. The web tests skip themselves when the `web` extra is not
 installed.
 
+`src/tests/test_package_hygiene.py` and `test_browser_install.py` fence off
+invariants at source level: no bare `except:`, no `read_text()` without an
+explicit encoding, no `sys.path` hacks, no SQL outside `repositories.py`, and no
+browser-install logic inside an adapter.
 
 ## Architecture
 
@@ -104,7 +138,7 @@ src/job_seeker_ai/
 ├── parsers.py              salary extraction + dedupe key
 ├── criteria_loaders.py     reads criteria/*.md
 ├── filters.py              pure word-filter verdicts
-├── llm_clients.py          LM Studio lifecycle, OpenAI-compatible client
+├── llm_clients.py          the OpenAI-compatible API client
 ├── evaluators.py           deal-breaker prompt and typed verdicts
 ├── scrapers/               base.py (contract + registry) · params.py · linkedin.py
 ├── services/               scraping.py · filtering.py · enrichment.py
@@ -124,12 +158,15 @@ compromises made on purpose, is in [docs/architecture.md](docs/architecture.md).
 | [docs/pipeline.md](docs/pipeline.md) | Each step in detail: what it reads, what it writes, how deduplication works |
 | [docs/review-website.md](docs/review-website.md) | Routes, filters, the status model, the deal-breaker pills |
 | [docs/architecture.md](docs/architecture.md) | Module map, layering rules, configuration, database schema |
-| [ROADMAP.md](ROADMAP.md) | What's being added next: more scraping sites, pluggable LLM backends, and driving the pipeline from the browser |
+| [ROADMAP.md](ROADMAP.md) | What's being added next: more scraping sites, cheaper enrichment, and driving the pipeline from the browser |
 | [`criteria/`](criteria) | The Markdown rules the pipeline is driven by |
 | [LICENSE](LICENSE) | MIT |
 
 ## Caveats
 
+- **Step 3 sends your postings off the machine.** Every job description you
+  evaluate, together with the contents of `criteria/deal_breakers.md`, goes to
+  whichever endpoint `LLM_BASE_URL` names. Steps 1, 2 and 4 stay local.
 - **Scraping LinkedIn is against their Terms of Service.** This is a personal
   tool used on the author's own account at low volume; the code makes no attempt
   to be polite on your behalf beyond a delay between job pages and a 60-second cap
@@ -143,3 +180,6 @@ compromises made on purpose, is in [docs/architecture.md](docs/architecture.md).
 - The criteria are personal. `must_words.md` and `deal_breakers.md` in particular
   encode one specific person's requirements — treat them as examples of the
   format, not as sensible defaults.
+- A `jobs.db` created before the schema was slimmed still carries a few unused
+  columns. Nothing reads them; they only disappear from a freshly created
+  database.

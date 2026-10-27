@@ -1,7 +1,7 @@
 """Enrichment: prompt composition and the structured verdict model.
 
 No LLM call is made here - these cover the wiring around the model, which is
-the part that can be verified without a running LM Studio.
+the part that can be verified without a running model server.
 """
 
 from job_seeker_ai import criteria_loaders, evaluators

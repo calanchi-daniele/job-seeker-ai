@@ -62,7 +62,7 @@ package-dir = { "" = "src" }
 where = ["src"]
 
 [tool.setuptools.package-data]
-job_seeker_ai = ["web/templates/*.html", "web/static/css/*.css"]
+job_seeker_ai = ["web/templates/*.html", "web/static/css/*.css", "web/static/js/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["src/tests"]

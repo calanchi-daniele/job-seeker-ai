@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Settings &mdash; Job review{% endblock %}
+{% block content %}
+  <div class="settings">
+    <nav class="settings__nav">
+      <h1>Settings</h1>
+      <ul>
+        {% for entry in nav %}
+          <li><a href="{{ entry.href }}"{% if entry.active %} class="is-active"{% endif %}>{{ entry.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+    <div class="settings__body">
+      {% block section %}{% endblock %}
+    </div>
+  </div>
+{% endblock %}

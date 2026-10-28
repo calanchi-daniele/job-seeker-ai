@@ -1,0 +1,21 @@
+{% extends "settings_layout.html" %}
+{% block section %}
+  <form method="post" action="/settings">
+    <section id="general">
+      <h2>General</h2>
+      <div class="rows">
+        {% for field in fields %}
+          <label class="row">
+            <span class="row__key">{{ field.key }}</span>
+            <input type="{{ 'password' if field.secret else 'text' }}" name="{{ field.key }}"
+                   value="{{ field.value }}" spellcheck="false" autocomplete="off">
+          </label>
+        {% endfor %}
+      </div>
+    </section>
+    <div class="actions">
+      {% if saved %}<span class="saved">Saved</span>{% endif %}
+      <button type="submit">Save</button>
+    </div>
+  </form>
+{% endblock %}

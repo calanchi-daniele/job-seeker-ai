@@ -22,9 +22,11 @@ is deliberately **not** meant to be reachable from a network.
 | GET | `/jobs/{job_id}` | full detail for one job |
 | POST | `/jobs/{job_id}/invalidate` | set status `invalidated` |
 | POST | `/jobs/{job_id}/reactivate` | set status `active` |
-| GET | `/settings` | the settings form |
+| GET | `/settings` | General: one input per `.env` key |
 | POST | `/settings` | write `.env` |
-| GET | `/static/...` | stylesheet |
+| GET | `/settings/filters` | Filters: the two word lists |
+| POST | `/settings/filters` | write both word lists |
+| GET | `/static/...` | stylesheet and script |
 
 An unknown `job_id` on the detail route is not a 404: it redirects (303) back
 to the page named in the `back` query parameter, defaulting to `/`. That
@@ -96,10 +98,15 @@ the filter rules against real postings.
 
 ## Settings page
 
-`/settings` is a two-column layout: a sidebar naming the sections on the left, the
-form for the selected one on the right. There is one section — **General** — and
-both the sidebar and the form are generated from `SECTIONS` in `web/app.py`, so a
-second section is a tuple to add rather than template surgery.
+Both settings sections are **their own page**, reached from a sidebar on the left of
+each: `/settings` is **General**, `/settings/filters` is **Filters**. The sidebar
+entry for the page you are on is highlighted, so the two read as one area with two
+tabs rather than one long form.
+
+`NAV` in `web/app.py` drives the sidebar (slug, title, href) and `GENERAL_FIELDS`
+drives the inputs, so adding a variable is a one-line edit rather than template
+surgery. Each page has its own form and Save button, so saving one never rewrites
+what the other owns.
 
 General renders **one input per managed `.env` key**, so the form is a direct view
 of the file rather than free text:
@@ -138,15 +145,41 @@ Behaviour worth knowing:
 The body is parsed with `urllib.parse.parse_qs` rather than FastAPI's `Form`, which
 would pull in `python-multipart` for the sake of one form.
 
+### Filters
+
+The second section is a two-column editor over the word lists the filter step reads:
+`criteria/must_words.md` on the left, `criteria/forbidden_words.md` on the right, an
+even split from `grid-template-columns: 1fr 1fr`.
+
+- **One editable row per line.** Both files are plain rule lists with no comments,
+  so reading lines in and writing lines out is lossless.
+- **`+` in the column header appends a blank row**, and the trash button removes the
+  row it belongs to. Both are client-side, in `static/js/settings.js` — the only
+  JavaScript in the project, and dependency-free.
+- **Save overwrites both files wholesale** from the rows on the page, in order. A
+  blank row is dropped rather than written as an empty line, and emptying a column
+  empties the file, which the filter step reads as "no rules".
+- **Both files go through the same atomic writer as `.env`** — temp file plus
+  `os.replace`, so a crash mid-save cannot leave a half-written rule list.
+
+Each row input carries its column's name (`must_words` / `forbidden_words`), so the
+form posts one list per column and the server needs no index fields. That is also
+why the script only has to clone and remove DOM nodes: order is document order.
+
 ## Structure
 
-One module, `src/job_seeker_ai/web/app.py`, six routes, plus:
+One module, `src/job_seeker_ai/web/app.py`, eight routes, plus:
 
-- `templates/base.html` — shared `<head>` and stylesheet link
-- `templates/jobs.html`, `templates/job_detail.html`, `templates/settings.html` —
-  `{% extends %}` the base
+- `templates/base.html` — shared `<head>`, stylesheet link and a `scripts` block
+- `templates/settings_layout.html` — the settings sidebar and the content card,
+  with a `section` block each page fills in
+- `templates/settings_general.html`, `templates/settings_filters.html` — one per
+  settings page
+- `templates/jobs.html`, `templates/job_detail.html` — `{% extends %}` the base
 - `static/css/style.css` — one stylesheet, previously inlined twice in both
   templates
+- `static/js/settings.js` — the only script: add and remove rows in Filters. It is
+  listed in `package-data` in `pyproject.toml`, so an installed wheel ships it
 
 All SQL lives in `repositories.py`. The route functions only translate HTTP
 into repository calls and hand the results to a template.
@@ -159,8 +192,8 @@ into repository calls and hand the results to a template.
 - `src/tests/test_web_routes.py` covers the list page, ordering, filters, detail
   page, static asset, both status mutations and the settings form. Those tests
   skip themselves if the `web` extra is not installed (`pip install -e ".[dev]"`
-  installs it), and they point `config.ENV_PATH` at a temp file so a run can never
-  write the real one.
+  installs it), and they point `config.ENV_PATH` and both word lists at temp files so
+  a run can never write the real ones.
 - A `jobs.db` created before the schema was slimmed still carries six unused
   columns. Nothing reads them and serving works fine, but they only disappear
   from a freshly created database.

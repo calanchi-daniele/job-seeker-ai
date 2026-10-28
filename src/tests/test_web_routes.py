@@ -10,6 +10,8 @@ pytest.importorskip("fastapi", reason="web extra not installed (pip install -e .
 pytest.importorskip("jinja2", reason="web extra not installed (pip install -e .[dev])")
 pytest.importorskip("httpx", reason="web extra not installed (pip install -e .[dev])")
 
+from urllib.parse import urlencode  # noqa: E402
+
 from fastapi.testclient import TestClient  # noqa: E402
 
 from job_seeker_ai import config  # noqa: E402
@@ -198,17 +200,41 @@ def test_static_stylesheet_is_served(con):
 
 
 @pytest.fixture(autouse=True)
-def _throwaway_env_file(tmp_path, monkeypatch):
-    """The settings form writes files, and the real .env is gitignored but real.
-    Point it at a temp directory so no test can touch the project's own."""
+def _throwaway_files(tmp_path, monkeypatch):
+    """The settings page writes three real files. Point all of them at a temp
+    directory so no test can touch the project's own .env or criteria."""
     monkeypatch.setattr(config, "ENV_PATH", tmp_path / ".env")
+    monkeypatch.setattr(config, "MUST_WORDS_PATH", tmp_path / "must_words.md")
+    monkeypatch.setattr(config, "FORBIDDEN_WORDS_PATH", tmp_path / "forbidden_words.md")
 
 
-def test_settings_renders_the_sidebar_and_the_general_section():
-    body = TestClient(app).get("/settings").text
+def test_the_sidebar_links_to_both_pages():
+    for path in ("/settings", "/settings/filters"):
+        body = TestClient(app).get(path).text
+        assert 'class="settings__nav"' in body
+        assert 'href="/settings"' in body
+        assert 'href="/settings/filters"' in body
 
-    assert 'class="settings__nav"' in body
-    assert ">General<" in body
+
+def test_the_sidebar_marks_the_page_you_are_on():
+    general = TestClient(app).get("/settings").text
+    filters = TestClient(app).get("/settings/filters").text
+
+    assert general.count('class="is-active"') == 1
+    assert filters.count('class="is-active"') == 1
+    assert '<a href="/settings" class="is-active">General</a>' in general
+    assert '<a href="/settings/filters" class="is-active">Filters</a>' in filters
+
+
+def test_the_two_pages_are_independent():
+    """General owns .env, Filters owns the word lists; neither shows the other."""
+    general = TestClient(app).get("/settings").text
+    filters = TestClient(app).get("/settings/filters").text
+
+    assert 'name="LLM_MODEL"' in general
+    assert "filter-columns" not in general
+    assert "filter-columns" in filters
+    assert 'name="LLM_MODEL"' not in filters
 
 
 def test_settings_renders_one_input_per_managed_key():
@@ -309,10 +335,141 @@ def test_the_write_target_is_fixed_and_never_taken_from_the_request(tmp_path):
     assert config.ENV_PATH.exists()
 
 
-def test_the_page_carries_no_instructional_text():
-    """The redesign keeps the form to fields and a Save button."""
-    body = TestClient(app).get("/settings").text
+def test_the_pages_carry_no_instructional_text():
+    """The redesign keeps each form to fields and a Save button."""
+    for path in ("/settings", "/settings/filters"):
+        body = TestClient(app).get(path).text
+        assert "<textarea" not in body, path
+        for marker in ('class="hint"', 'class="notice"', "restart", "Restart"):
+            assert marker not in body, (path, marker)
 
-    assert "<textarea" not in body
-    for marker in ('class="hint"', 'class="notice"', "restart", "Restart"):
-        assert marker not in body, marker
+
+# --- the filters section -------------------------------------------------
+
+
+def _seed_lists(must=".NET OR C#\nbackend OR platform\n", forbidden="blockchain\nninja\n"):
+    config.MUST_WORDS_PATH.write_text(must, encoding="utf-8")
+    config.FORBIDDEN_WORDS_PATH.write_text(forbidden, encoding="utf-8")
+
+
+def _post_lists(client, url, **lists):
+    """Post repeated fields, which httpx will not encode from a list of tuples."""
+    body = urlencode([(name, value) for name, values in lists.items() for value in values])
+    return client.post(url, content=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
+
+
+def test_filters_renders_both_columns():
+    body = TestClient(app).get("/settings/filters").text
+
+    assert "Must Contain" in body
+    assert "Forbidden" in body
+
+
+def test_the_two_columns_split_the_width_evenly():
+    """The 50/50 split is a stylesheet contract, not an inline style."""
+    css = TestClient(app).get("/static/css/style.css").text
+
+    assert ".filter-columns" in css
+    assert "grid-template-columns: 1fr 1fr" in css
+
+
+def test_the_save_button_is_right_aligned_with_a_top_margin():
+    css = TestClient(app).get("/static/css/style.css").text
+
+    line = next(rule for rule in css.splitlines() if rule.startswith(".actions {"))
+    assert "justify-content: flex-end" in line
+    assert "margin-top: 15px" in line
+
+
+def test_filters_renders_one_row_per_rule_line():
+    _seed_lists()
+
+    body = TestClient(app).get("/settings/filters").text
+
+    assert 'value=".NET OR C#"' in body
+    assert 'value="backend OR platform"' in body
+    assert 'value="blockchain"' in body
+    assert 'value="ninja"' in body
+
+
+def test_a_column_with_no_file_still_renders_its_controls():
+    """A fresh checkout has neither file; the column must still be usable."""
+    body = TestClient(app).get("/settings/filters").text
+
+    assert body.count("data-add") >= 2
+    assert "<template>" in body
+
+
+def test_every_row_has_a_remove_button_and_both_columns_are_addressable():
+    _seed_lists()
+
+    body = TestClient(app).get("/settings/filters").text
+
+    assert body.count('data-list') == 2
+    assert body.count('data-rows') == 2
+    # two seeded rows per column, plus the blank template row in each
+    assert body.count("data-remove") == 6
+
+
+def test_the_settings_script_is_served_and_wired_to_the_hooks():
+    response = TestClient(app).get("/static/js/settings.js")
+
+    assert response.status_code == 200
+    for hook in ("data-list", "data-rows", '"[data-add]"', '"[data-remove]"'):
+        assert hook in response.text, hook
+
+
+def test_saving_filters_overwrites_both_files():
+    _seed_lists()
+
+    response = _post_lists(
+        TestClient(app, follow_redirects=False),
+        "/settings/filters",
+        must_words=["only-this"],
+        forbidden_words=["not-that"],
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/settings/filters?saved=1"
+    assert config.MUST_WORDS_PATH.read_text(encoding="utf-8") == "only-this\n"
+    assert config.FORBIDDEN_WORDS_PATH.read_text(encoding="utf-8") == "not-that\n"
+
+
+def test_saving_filters_preserves_the_order_of_the_rows():
+    _post_lists(TestClient(app), "/settings/filters", must_words=["third", "first", "second"])
+
+    lines = config.MUST_WORDS_PATH.read_text(encoding="utf-8").splitlines()
+    assert lines == ["third", "first", "second"]
+
+
+def test_saving_filters_drops_blank_rows():
+    """An emptied row is not a rule, so it must not become a blank line."""
+    _post_lists(TestClient(app), "/settings/filters", must_words=["kept", "   ", ""])
+
+    assert config.MUST_WORDS_PATH.read_text(encoding="utf-8") == "kept\n"
+
+
+def test_saving_filters_can_empty_a_list():
+    _seed_lists()
+
+    TestClient(app).post("/settings/filters", data={"forbidden_words": "still-here"})
+
+    assert config.MUST_WORDS_PATH.read_text(encoding="utf-8") == ""
+    assert config.FORBIDDEN_WORDS_PATH.read_text(encoding="utf-8") == "still-here\n"
+
+
+def test_the_saved_marker_sits_left_of_the_button():
+    """Feedback, not instruction: it belongs beside the button."""
+    client = TestClient(app)
+    client.post("/settings", data={"LLM_MODEL": "x"})
+
+    body = client.get("/settings", params={"saved": "1"}).text
+
+    assert body.index("Saved") < body.index(">Save<")
+
+
+def test_filters_round_trip_through_the_page():
+    client = TestClient(app)
+    _post_lists(client, "/settings/filters", must_words=["round-trip-rule"])
+
+    assert 'value="round-trip-rule"' in client.get("/settings/filters").text

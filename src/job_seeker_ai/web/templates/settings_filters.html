@@ -1,0 +1,50 @@
+{% extends "settings_layout.html" %}
+
+{% macro trash_icon() -%}
+  <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">
+    <path fill="currentColor" d="M6.5 1.5h3a.5.5 0 0 1 .5.5v.5h2.75a.75.75 0 0 1 0 1.5H13v8.75A2.25 2.25 0 0 1 10.75 15h-5.5A2.25 2.25 0 0 1 3 12.75V4H2.25a.75.75 0 0 1 0-1.5H5V2a.5.5 0 0 1 .5-.5Zm-2 2.5v8.75c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75V4h-7Z"/>
+  </svg>
+{%- endmacro %}
+
+{% macro filter_row(field, value) -%}
+  <div class="filter-row">
+    <input type="text" name="{{ field }}" value="{{ value }}" spellcheck="false" autocomplete="off">
+    <button type="button" class="icon icon--danger" data-remove aria-label="Remove this line" title="Remove">
+      {{ trash_icon() }}
+    </button>
+  </div>
+{%- endmacro %}
+
+{% block section %}
+  <form method="post" action="/settings/filters">
+    <section id="filters">
+      <h2>Filters</h2>
+      <div class="filter-columns">
+        {% for column in filters %}
+          <div class="filter-column" data-list>
+            <div class="filter-column__head">
+              <h3>{{ column.title }}</h3>
+              <button type="button" class="icon" data-add aria-label="Add a line to {{ column.title }}" title="Add">+</button>
+            </div>
+            <div class="filter-rows" data-rows>
+              {% for line in column.lines %}
+                {{ filter_row(column.field, line) }}
+              {% endfor %}
+            </div>
+            <template>
+              {{ filter_row(column.field, '') }}
+            </template>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+    <div class="actions">
+      {% if saved %}<span class="saved">Saved</span>{% endif %}
+      <button type="submit">Save</button>
+    </div>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/js/settings.js"></script>
+{% endblock %}

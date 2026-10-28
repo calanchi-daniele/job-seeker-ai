@@ -34,9 +34,9 @@ job_seeker_ai/
 │   │   │   ├── filtering.py   word filter over the database
 │   │   │   └── enrichment.py  LLM pass over pending jobs
 │   │   └── web/
-│   │       ├── app.py         FastAPI app (one module, six routes)
+│   │       ├── app.py         FastAPI app (one module, eight routes)
 │   │       ├── templates/
-│   │       └── static/css/
+│   │       └── static/        css/ and js/
 │   └── tests/
 ├── pyproject.toml
 └── README.md
@@ -95,7 +95,7 @@ Both are noted rather than hidden:
    1-function-per-query module of ~200 lines; splitting it into four modules
    would add imports without adding clarity. If it grows past that, split by
    the section comments.
-2. **`web/app.py` is a single module.** Six endpoints do not justify a router
+2. **`web/app.py` is a single module.** Eight endpoints do not justify a router
    package. The SQL separation still applies: the one ordering the list uses
    lives in `repositories.list_jobs`.
 

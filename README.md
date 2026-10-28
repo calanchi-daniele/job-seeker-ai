@@ -104,11 +104,13 @@ Everything the tool needs to know about *you* is a plain file you edit by hand:
 The two word lists are applied by cheap string matching with no model involved;
 only `deal_breakers.md` reaches the LLM.
 
-`.env` can also be written from the review site: `serve`, then open `/settings`.
-The General section is one input per variable — `LLM_API_KEY` masked — so the form
-is a direct view of the file. Only the variables it lists are written back, so a
-key added by hand survives, though comments do not. A saved value applies on the
-next process start, not to the one already running.
+Both `.env` and the two word lists can be edited from the review site: `serve`, then
+open `/settings`, which is two pages behind a sidebar — **General** and **Filters**,
+each with its own Save. General is one input per variable — `LLM_API_KEY` masked — so
+the form is a direct view of the file; only the variables it lists are written back,
+so a key added by hand survives, though comments do not. Filters is a two-column list
+editor over `must_words.md` and `forbidden_words.md`, with add and remove per row. A
+saved value applies on the next process start, not to the one already running.
 
 `state.json` holds **live LinkedIn session cookies**. It is gitignored. Never
 commit it, attach it to an issue, or paste it into a screenshot.

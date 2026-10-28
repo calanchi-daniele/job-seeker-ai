@@ -123,6 +123,17 @@ def parse_deal_breakers(text: str) -> list[dict]:
     return items
 
 
+def _one_line(value) -> str:
+    """Collapse a field to a single line.
+
+    The file holds one entry per line, and the description is edited in a
+    ``<textarea>``, so a newline typed there would come back as a line that is not
+    an entry - and be dropped on the next save. Collapsing whitespace keeps the
+    whole field on its line instead.
+    """
+    return " ".join((value or "").split())
+
+
 def format_deal_breakers(items: list[dict]) -> str:
     """One dict per deal breaker -> the flattened Markdown the prompt reads.
 
@@ -139,20 +150,20 @@ def format_deal_breakers(items: list[dict]) -> str:
     examples: list[str] = []
 
     for item in items:
-        key = (item.get("key") or "").strip()
+        key = _one_line(item.get("key"))
         if not key:
             continue
-        core.append(f"- {key}: {(item.get('description') or '').strip()}")
+        core.append(f"- {key}: {_one_line(item.get('description'))}")
 
         for principle in item.get("principles") or []:
-            title = (principle.get("title") or "").strip()
-            body = (principle.get("principle") or "").strip()
+            title = _one_line(principle.get("title"))
+            body = _one_line(principle.get("principle"))
             if title or body:
                 principles.append(f"- {key}: {title} - {body}")
 
         for example in item.get("examples") or []:
-            score = (example.get("score") or "").strip()
-            body = (example.get("example") or "").strip()
+            score = _one_line(example.get("score"))
+            body = _one_line(example.get("example"))
             if score or body:
                 examples.append(f"- {key}: {score} - {body}")
 

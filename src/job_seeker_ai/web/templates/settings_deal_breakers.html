@@ -6,53 +6,61 @@
   </svg>
 {%- endmacro %}
 
-{% macro remove_button(what, extra_class='') -%}
-  <button type="button" class="icon icon--danger {{ extra_class }}" data-remove aria-label="Remove this {{ what }}" title="Remove">
+{% macro remove_button(what) -%}
+  <button type="button" class="icon icon--danger" data-remove aria-label="Remove this {{ what }}" title="Remove">
     {{ trash_icon() }}
   </button>
 {%- endmacro %}
 
-{% macro add_button(what, extra_class='') -%}
-  <button type="button" class="icon {{ extra_class }}" data-add aria-label="Add {{ what }}" title="Add">+</button>
+{% macro add_button(what, large=false) -%}
+  <button type="button" class="icon{{ ' icon--large' if large }}" data-add aria-label="Add {{ what }}" title="Add">+</button>
+{%- endmacro %}
+
+{#- Scores are the three the prompt allows. A blank option keeps an untouched row
+    blank, and an unexpected value from a hand-edited file is carried through rather
+    than silently reset to 0. -#}
+{% macro score_select(score) -%}
+  <select name="example_score" class="col-10" aria-label="Score">
+    <option value=""{% if not score %} selected{% endif %}></option>
+    {% if score and score not in ('0', '1', '2') %}
+      <option value="{{ score }}" selected>{{ score }}</option>
+    {% endif %}
+    {% for value in ('0', '1', '2') %}
+      <option value="{{ value }}"{% if score == value %} selected{% endif %}>{{ value }}</option>
+    {% endfor %}
+  </select>
 {%- endmacro %}
 
 {% macro principle_row(title, principle) -%}
   <div class="subrow" data-row>
-    <input type="text" name="principle_title" value="{{ title }}" spellcheck="false" autocomplete="off" aria-label="Principle title" class="col-20">
-    <input type="text" name="principle_text" value="{{ principle }}" spellcheck="false" autocomplete="off" aria-label="Principle" class="col-80">
+    <input type="text" class="col-20" name="principle_title" value="{{ title }}" spellcheck="false" autocomplete="off" aria-label="Principle title">
+    <input type="text" class="col-80" name="principle_text" value="{{ principle }}" spellcheck="false" autocomplete="off" aria-label="Principle">
     {{ remove_button('principle') }}
   </div>
 {%- endmacro %}
 
 {% macro example_row(score, example) -%}
   <div class="subrow" data-row>
-    <select name="example_score" class="col-10" aria-label="Score">
-      <option value="0" {% if score|string == '0' %}selected{% endif %}>Rejected</option>
-      <option value="1" {% if score|string == '1' %}selected{% endif %}>Uncertain</option>
-      <option value="2" {% if score|string == '2' %}selected{% endif %}>Approved</option>
-    </select>
-    <input type="text" name="example_text" value="{{ example }}" spellcheck="false" autocomplete="off" aria-label="Example" class="col-90">
+    {{ score_select(score) }}
+    <input type="text" class="col-90" name="example_text" value="{{ example }}" spellcheck="false" autocomplete="off" aria-label="Example">
     {{ remove_button('example') }}
   </div>
 {%- endmacro %}
 
-{% macro sublist(kind, label, title, items) -%}
+{#- One optional sub-list: a title with its own "+", a caption row matching the
+    column weights, the rows it currently has, and a template holding one blank row
+    for that "+" to clone. -#}
+{% macro sublist(kind, label, title, captions, items) -%}
   <div class="sublist" data-group>
     <div class="sublist__head">
       <span class="sublist__title">{{ title }}</span>
       {{ add_button(label) }}
     </div>
-
     <div class="sublist__labels">
-      {% if kind == 'principle' %}
-        <span class="col-20">Title</span>
-        <span class="col-80">Principle</span>
-      {% else %}
-        <span class="col-10">Score</span>
-        <span class="col-90">Example</span>
-      {% endif %}
+      {% for caption, column in captions %}
+        <span class="{{ column }}">{{ caption }}</span>
+      {% endfor %}
     </div>
-
     <div class="sublist__rows" data-rows>
       {% for item in items %}
         {% if kind == 'principle' %}
@@ -71,21 +79,20 @@
 {% macro breaker_card(breaker) -%}
   <div class="breaker" data-row>
     <div class="breaker__head">
-      <div class="breaker__field main-field">
-        <label class="block-label">Key</label>
+      <div class="breaker__field breaker__field--key">
+        <span class="inline-label">Key</span>
         <input type="text" name="key" value="{{ breaker.key }}" spellcheck="false" autocomplete="off" aria-label="Deal breaker key">
       </div>
-      {{ remove_button('deal breaker', 'icon--large') }}
+      <div class="breaker__field main-field">
+        <span class="block-label">Description</span>
+        <textarea name="description" rows="2" spellcheck="false" aria-label="Description">{{ breaker.description }}</textarea>
+      </div>
+      {{ remove_button('deal breaker') }}
     </div>
-
-    <div class="breaker__field">
-      <label class="block-label">Description</label>
-      <!-- Changed rows to "2" -->
-      <textarea name="description" rows="2" spellcheck="false" autocomplete="off" aria-label="Description">{{ breaker.description }}</textarea>
-    </div>
-
-    {{ sublist('principle', 'an evaluation principle', 'Evaluation Principles', breaker.principles) }}
-    {{ sublist('example', 'an example', 'Examples', breaker.examples) }}
+    {{ sublist('principle', 'an evaluation principle', 'Evaluation Principles',
+                [('Title', 'col-20'), ('Principle', 'col-80')], breaker.principles) }}
+    {{ sublist('example', 'an example', 'Examples',
+                [('Score', 'col-10'), ('Example', 'col-90')], breaker.examples) }}
   </div>
 {%- endmacro %}
 
@@ -95,7 +102,7 @@
       <div data-group>
         <div class="section-head">
           <h2>Deal Breakers</h2>
-          {{ add_button('a deal breaker', 'icon--large') }}
+          {{ add_button('a deal breaker', true) }}
         </div>
         <div class="breaker-rows" data-rows>
           {% for breaker in deal_breakers %}

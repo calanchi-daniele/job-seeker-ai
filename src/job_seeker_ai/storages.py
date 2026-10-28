@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS job_sources (
     site          TEXT NOT NULL,
     source_id     TEXT NOT NULL,   -- the site's own id for this posting
     url           TEXT NOT NULL,
-    search_name   TEXT,            -- which searches.json entry found it
+    search_name   TEXT,            -- which job_sites search found it
     first_seen_at TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (site, source_id)
 );

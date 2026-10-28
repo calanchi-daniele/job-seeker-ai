@@ -4,7 +4,7 @@ Four independent steps. Each one reads and writes the same SQLite file and
 can be run on its own; nothing is scheduled or daemonised.
 
 ```
-searches.json ──┐
+linkedin.json ──┐
                 ├─> [1] scrape ──> jobs.db ──> [2] filter ──> jobs.db
 criteria/*.md ──┘                     │
                                       └─> [3] enrich ──> jobs.db ──> [4] review
@@ -42,7 +42,7 @@ python -m job_seeker_ai run --headful    # watch the browser work
 ```
 
 - Signs in interactively first (**see item 8 above** — this is not yet optional).
-- Reads `searches.json`: a list of named searches with `pages` and `params`.
+- Reads `job_sites/linkedin.json`: a list of named searches with `pages` and `params`.
 - Translates friendly param names into LinkedIn facet codes
   (`scrapers/params.py`).
 - Opens search-result pages concurrently (`CONCURRENT_SEARCH_PAGES = 2`),

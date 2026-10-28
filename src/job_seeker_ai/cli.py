@@ -68,7 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_login.add_argument("--site", default="linkedin", help="site adapter to use (default: linkedin)")
     p_login.set_defaults(handler=_cmd_login)
 
-    p_run = sub.add_parser("run", help="scrape searches.json into the database")
+    p_run = sub.add_parser("run", help="scrape the job_sites searches into the database")
     p_run.add_argument("--site", default="linkedin", help="site adapter to use (default: linkedin)")
     p_run.add_argument("--headful", action="store_true", help="show the browser while scraping")
     p_run.set_defaults(handler=_cmd_run)

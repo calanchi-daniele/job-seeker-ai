@@ -1,29 +1,31 @@
-"""Step 1: turn ``searches.json`` into scrape work and hand it to an adapter.
+"""Step 1: turn ``job_sites/`` into scrape work and hand it to an adapter.
 
-This module is the only place that knows searches.json exists. Adapters
-receive ready-made ``SearchSpec`` objects, which is what makes them testable
-without a config file and reusable with any other source of specs.
+This module is the only place that turns a site's search file into ``SearchSpec``
+objects. Adapters receive ready-made specs, which is what makes them testable
+without a config file and reusable with any other source of specs. The JSON itself
+belongs to ``job_sites.py``.
 
 It is also the boundary for the scraping phase's *environment*: ``prepare()``
 checks the browser stack once, here, instead of inside every adapter. Adding a
 site therefore does not mean adding another install check to a launch path.
 """
 
-import json
 from pathlib import Path
 
-from job_seeker_ai import browsers, config
-from job_seeker_ai.criteria_loaders import ENCODING
+from job_seeker_ai import browsers, job_sites
 from job_seeker_ai.entities import SearchSpec
 from job_seeker_ai.scrapers.base import get_adapter
 
 
 def load_searches(path: str | Path | None = None) -> list[SearchSpec]:
-    """Parse searches.json. Raises ``KeyError``/``JSONDecodeError`` loudly
+    """Parse the site's search file. Raises ``KeyError``/``JSONDecodeError`` loudly
     rather than scraping nothing, since a silent empty run looks like
     "no new jobs"."""
-    raw = json.loads(Path(path or config.SEARCHES_PATH).read_text(encoding=ENCODING))
-    return [SearchSpec(name=s["name"], params=s["params"], pages=s.get("pages", 1)) for s in raw["searches"]]
+    raw = job_sites.load_document(path)
+    return [
+        SearchSpec(name=s["name"], params=s["params"], pages=s.get("pages", 1))
+        for s in raw[job_sites.SEARCHES_KEY]
+    ]
 
 
 def prepare() -> None:

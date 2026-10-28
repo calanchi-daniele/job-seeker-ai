@@ -6,7 +6,7 @@
  * one handler covers a filter line, a deal breaker's sub-item, and the deal-breaker
  * card those sub-items sit in.
  *
- * Nothing here touches values or names: every input keeps the name it was rendered
+ * Nothing here touches values or names: every control keeps the name it was rendered
  * with, so a plain form post arrives in document order and the server rebuilds the
  * nesting from that. The script only has to clone and remove DOM nodes.
  */
@@ -24,7 +24,7 @@ document.addEventListener("click", function (event) {
     }
     var row = template.content.firstElementChild.cloneNode(true);
     rows.appendChild(row);
-    var first = row.querySelector("input");
+    var first = row.querySelector("input, select, textarea");
     if (first) {
       first.focus();
     }

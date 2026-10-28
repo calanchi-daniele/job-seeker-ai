@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class SearchSpec:
-    """One entry of ``searches.json``.
+    """One entry of a ``job_sites/`` search document.
 
     ``params`` stays a plain dict because it is whatever the search
     definition holds; translating the friendly names into the site's own

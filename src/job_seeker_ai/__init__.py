@@ -2,7 +2,7 @@
 
 Four independent steps, each usable on its own:
 
-    1. scrape   searches.json        -> jobs.db   (scrapers/)
+    1. scrape   job_sites/*.json     -> jobs.db   (scrapers/)
     2. filter   hard word rules      -> jobs.db   (filters/)
     3. enrich   API evaluation        -> jobs.db   (evaluators/)
     4. review   read/triage jobs.db  -> browser   (web/)

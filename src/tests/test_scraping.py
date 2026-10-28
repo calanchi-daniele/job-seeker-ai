@@ -1,4 +1,4 @@
-"""Step 1 orchestration: searches.json loading and search-page recovery."""
+"""Step 1 orchestration: job_sites loading and search-page recovery."""
 
 import asyncio
 import json
@@ -43,11 +43,11 @@ def _no_sleep(monkeypatch):
     monkeypatch.setattr(asyncio, "sleep", _sleep)
 
 
-# --- searches.json -------------------------------------------------------
+# --- job_sites/linkedin.json ---------------------------------------------
 
 
 def test_load_searches_reads_every_field(tmp_path):
-    path = tmp_path / "searches.json"
+    path = tmp_path / "linkedin.json"
     path.write_text(
         json.dumps({"searches": [{"name": "a", "pages": 3, "params": {"keywords": "py"}}]}),
         encoding="utf-8",
@@ -62,14 +62,14 @@ def test_load_searches_reads_every_field(tmp_path):
 
 
 def test_load_searches_defaults_pages_to_one(tmp_path):
-    path = tmp_path / "searches.json"
+    path = tmp_path / "linkedin.json"
     path.write_text(json.dumps({"searches": [{"name": "a", "params": {}}]}), encoding="utf-8")
 
     assert scraping.load_searches(path)[0].pages == 1
 
 
 def test_load_searches_decodes_utf8(tmp_path):
-    path = tmp_path / "searches.json"
+    path = tmp_path / "linkedin.json"
     path.write_text(
         json.dumps({"searches": [{"name": "eu", "params": {"location": "Città"}}]}),
         encoding="utf-8",
@@ -80,7 +80,7 @@ def test_load_searches_decodes_utf8(tmp_path):
 
 def test_load_searches_fails_loudly_on_a_missing_key(tmp_path):
     """A malformed file must not look like "no new jobs"."""
-    path = tmp_path / "searches.json"
+    path = tmp_path / "linkedin.json"
     path.write_text(json.dumps({"searches": [{"params": {}}]}), encoding="utf-8")
 
     with pytest.raises(KeyError):

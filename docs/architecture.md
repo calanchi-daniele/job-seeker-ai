@@ -8,7 +8,8 @@ job_seeker_ai/
 │   ├── must_words.md
 │   ├── forbidden_words.md
 │   └── deal_breakers.md
-├── searches.json              user-edited search definitions
+├── job_sites/                 one search document per site
+│   └── linkedin.json          searches + the _legend the settings form reads
 ├── docs/
 ├── src/
 │   ├── job_seeker_ai/
@@ -20,6 +21,7 @@ job_seeker_ai/
 │   │   ├── repositories.py    every SQL statement
 │   │   ├── parsers.py         salary / interview / dedupe-key extraction
 │   │   ├── criteria_loaders.py  reads criteria/*.md
+│   │   ├── job_sites.py       the job_sites/*.json documents
 │   │   ├── filters.py         pure word-filter verdicts
 │   │   ├── llm_clients.py     the OpenAI-compatible API client
 │   │   ├── evaluators.py      deal-breaker prompt + verdict models
@@ -30,11 +32,11 @@ job_seeker_ai/
 │   │   │   ├── params.py      LinkedIn facet codes
 │   │   │   └── linkedin.py    the Camoufox scraper
 │   │   ├── services/
-│   │   │   ├── scraping.py    searches.json -> adapter
+│   │   │   ├── scraping.py    job_sites/ -> adapter
 │   │   │   ├── filtering.py   word filter over the database
 │   │   │   └── enrichment.py  LLM pass over pending jobs
 │   │   └── web/
-│   │       ├── app.py         FastAPI app (one module, ten routes)
+│   │       ├── app.py         FastAPI app (one module, twelve routes)
 │   │       ├── templates/
 │   │       └── static/        css/ and js/
 │   └── tests/
@@ -95,7 +97,7 @@ Both are noted rather than hidden:
    1-function-per-query module of ~200 lines; splitting it into four modules
    would add imports without adding clarity. If it grows past that, split by
    the section comments.
-2. **`web/app.py` is a single module.** Ten endpoints do not justify a router
+2. **`web/app.py` is a single module.** Twelve endpoints do not justify a router
    package. The SQL separation still applies: the one ordering the list uses
    lives in `repositories.list_jobs`.
 
@@ -135,7 +137,7 @@ call to `prepare()`, not touching the adapter contract.
 | Variable | Default | Purpose |
 |---|---|---|
 | `STATE_PATH` | `./state.json` | persisted browser session (**secret**) |
-| `SEARCHES_PATH` | `./searches.json` | search definitions |
+| `SEARCHES_PATH` | `./job_sites/linkedin.json` | the site's searches, plus the `_legend` the settings form reads |
 | `CRITERIA_DIR` | `./criteria` | rule files |
 | `JOBS_DB_PATH` | `./jobs.db` | the database; the documented test hook |
 | `LLM_BASE_URL` | *(required)* | the OpenAI-compatible endpoint, including its version segment |

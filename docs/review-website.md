@@ -28,6 +28,8 @@ is deliberately **not** meant to be reachable from a network.
 | POST | `/settings/filters` | write both word lists |
 | GET | `/settings/deal-breakers` | Deal Breakers: nested cards |
 | POST | `/settings/deal-breakers` | write `deal_breakers.md` |
+| GET | `/settings/linkedin` | Linkedin: one card per search |
+| POST | `/settings/linkedin` | write the `searches` array |
 | GET | `/static/...` | stylesheet and script |
 
 An unknown `job_id` on the detail route is not a 404: it redirects (303) back
@@ -100,10 +102,11 @@ the filter rules against real postings.
 
 ## Settings page
 
-Both settings sections are **their own page**, reached from a sidebar on the left of
-each: `/settings` is **General**, `/settings/filters` is **Filters**. The sidebar
-entry for the page you are on is highlighted, so the two read as one area with two
-tabs rather than one long form.
+Each section is **its own page**, reached from a sidebar on the left of every one:
+`/settings` is **General**, `/settings/filters` is **Filters**,
+`/settings/deal-breakers` is **Deal Breakers** and `/settings/linkedin` is
+**Linkedin**, last in the list. The sidebar entry for the page you are on is
+highlighted, so the four read as one area with four tabs rather than one long form.
 
 `NAV` in `web/app.py` drives the sidebar (slug, title, href) and `GENERAL_FIELDS`
 drives the inputs, so adding a variable is a one-line edit rather than template
@@ -177,7 +180,7 @@ the only one with nested lists:
 |---|---|
 | core (mandatory) | `key` and `description` |
 | Evaluation Principles (optional) | `title` and `principle`, one row each |
-| Examples (optional) | `score` and `example`, one row each |
+| Examples (optional) | a `score` select and `example`, one row each |
 
 `+` adds a card, and each card has its own `+` on both sub-lists; every row has a
 trash button. All of it runs through the same `static/js/settings.js` as Filters —
@@ -215,15 +218,51 @@ repeats, which is why keys have to be unique within a file. Notes on the edges:
 `saving the loaded state changes nothing` is a test, and it runs against the real
 shipped file as well as a fixture.
 
+### Linkedin
+
+The fourth section edits `job_sites/linkedin.json`, and it is the only one whose
+form is **generated from the file itself**: `_legend` lists the allowed values for
+the constrained search parameters, so it doubles as the schema.
+
+- **One card per entry in `searches`**, holding `name`, `pages` and one control per
+  parameter.
+- **A parameter the legend lists becomes a `<select>`** of exactly those values;
+  everything else — `keywords`, `location`, and any parameter added by hand — is
+  free text. The field list therefore starts from the parameters already in the
+  data and only then adds legend keys no search uses yet: a legend-only list would
+  hide the two that matter most.
+- **`_legend._multiple` names the parameters that take several values**, and those
+  get a **row of checkboxes**: `work_type`, `employment_type` and
+  `experience_levels`, since LinkedIn's `f_WT`, `f_JT` and `f_E` all accept a
+  comma-separated list and `scrapers/params.py` joins one. Not a `<select multiple>`
+  — that needs Ctrl-click and reads as a single choice. `posted_within` is
+  deliberately absent, because one time bucket is one bucket, and stays a dropdown.
+  The flag is read from the legend rather than inferred from the stored value, so a
+  search that has never set `experience_levels` still gets the checkboxes instead of
+  locking to the first choice made in it.
+- **`_legend` itself never reaches the form.** Keys starting with `_` are
+  documentation or schema — `_comment` explains the file inside the file — and a
+  save *merges* into the existing document, so the legend and any other top-level
+  key survive.
+- **`pages` is coerced to a positive integer**, because a string there would break
+  the adapter's page loop; an unparseable entry falls back to 1, the same default
+  the loader uses for a missing key.
+- **A card with no name is dropped** on save, like an empty row elsewhere.
+
+Saving rewrites `searches` in document order. `merge_searches` re-serialises the
+whole document, so a hand-formatted file comes back fully indented — data
+preserved, whitespace not.
+
 ## Structure
 
-One module, `src/job_seeker_ai/web/app.py`, ten routes, plus:
+One module, `src/job_seeker_ai/web/app.py`, twelve routes, plus:
 
 - `templates/base.html` — shared `<head>`, stylesheet link and a `scripts` block
 - `templates/settings_layout.html` — the settings sidebar and the content card,
   with a `section` block each page fills in
-- `templates/settings_general.html`, `templates/settings_filters.html`,
-  `templates/settings_deal_breakers.html` — one per settings page
+- `templates/settings_general.html`, `templates/settings_linkedin.html`,
+  `templates/settings_filters.html`, `templates/settings_deal_breakers.html` — one
+  per settings page
 - `templates/jobs.html`, `templates/job_detail.html` — `{% extends %}` the base
 - `static/css/style.css` — one stylesheet, previously inlined twice in both
   templates

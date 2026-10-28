@@ -7,7 +7,7 @@ live in Markdown, and no model is bundled here: step 3 is a thin client for an
 OpenAI-compatible endpoint you point it at.
 
 ```
-searches.json ──┐
+linkedin.json ──┐
                 ├─> [1] scrape ───> [2] filter ───> [3] enrich ───> [4] review
                 │         │               │              │
 criteria/*.md ──┘         └> jobs.db      └>jobs.db      └>jobs.db  
@@ -95,7 +95,7 @@ Everything the tool needs to know about *you* is a plain file you edit by hand:
 
 | File | What it is |
 |---|---|
-| [`searches.json`](searches.json) | `{_legend, searches: [{name, pages, params}]}`. `keywords` and `location` are free text; `work_type`, `posted_within`, `employment_type` and `experience_levels` must use the exact values listed in the file's own `_legend`. |
+| [`job_sites/linkedin.json`](job_sites/linkedin.json) | One file per site under `job_sites/`: `{_legend, searches: [{name, pages, params}]}`. `keywords` and `location` are free text; `work_type`, `posted_within`, `employment_type` and `experience_levels` must use the exact values in the file's own `_legend`, and its `_multiple` lists which of them take several values at once. |
 | [`criteria/must_words.md`](criteria/must_words.md) | One rule per line, `word OR word`. A job is rejected unless it matches at least one word on **every** line. |
 | [`criteria/forbidden_words.md`](criteria/forbidden_words.md) | One phrase per line. A job is rejected if any of them appears. |
 | [`criteria/deal_breakers.md`](criteria/deal_breakers.md) | Strict pass/fail rules — remote-from-Italy availability, minimum salary. A flat list plus two keyed sub-lists, sent to the model as the prompt's criteria. |
@@ -104,13 +104,13 @@ Everything the tool needs to know about *you* is a plain file you edit by hand:
 The two word lists are applied by cheap string matching with no model involved;
 only `deal_breakers.md` reaches the LLM.
 
-Both `.env` and the two word lists can be edited from the review site: `serve`, then
-Both `.env` and the three criteria files can be edited from the review site: `serve`,
-then open `/settings`, which is three pages behind a sidebar — **General**,
-**Filters** and **Deal Breakers** — each with its own Save. General is one input per
+Both `.env` and the site's searches can be edited from the review site: `serve`, then
+open `/settings`, which is four pages behind a sidebar — **General**, **Filters**,
+**Deal Breakers** and **Linkedin** — each with its own Save. General is one input per
 variable — `LLM_API_KEY` masked — so the form is a direct view of the file; only the
 variables it lists are written back, so a key added by hand survives, though comments
-do not. Filters is a two-column list editor over `must_words.md` and
+do not. Linkedin is one card per search, with the fields generated from the file's own
+`_legend`. Filters is a two-column list editor over `must_words.md` and
 `forbidden_words.md`. Deal Breakers is one card per rule, each with its own optional
 principles and examples lists. A saved value applies on the next process start, not
 to the one already running.

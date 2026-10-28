@@ -4,6 +4,8 @@ Skipped, not failed, when the web extra is not installed: the web layer is an
 optional step and ``pip install -e .[dev]`` is what brings it in.
 """
 
+import json
+
 import pytest
 
 pytest.importorskip("fastapi", reason="web extra not installed (pip install -e .[dev])")
@@ -201,19 +203,21 @@ def test_static_stylesheet_is_served(con):
 
 @pytest.fixture(autouse=True)
 def _throwaway_files(tmp_path, monkeypatch):
-    """The settings pages write four real files. Point all of them at a temp
-    directory so no test can touch the project's own .env or criteria."""
+    """The settings pages write five real files. Point all of them at a temp
+    directory so no test can touch the project's own .env, criteria or searches."""
     monkeypatch.setattr(config, "ENV_PATH", tmp_path / ".env")
     monkeypatch.setattr(config, "MUST_WORDS_PATH", tmp_path / "must_words.md")
     monkeypatch.setattr(config, "FORBIDDEN_WORDS_PATH", tmp_path / "forbidden_words.md")
     monkeypatch.setattr(config, "DEAL_BREAKERS_PATH", tmp_path / "deal_breakers.md")
+    monkeypatch.setattr(config, "SEARCHES_PATH", tmp_path / "linkedin.json")
 
 
 def test_the_sidebar_links_to_every_settings_page():
-    for path in ("/settings", "/settings/filters", "/settings/deal-breakers"):
+    for path in ("/settings", "/settings/linkedin", "/settings/filters", "/settings/deal-breakers"):
         body = TestClient(app).get(path).text
         assert 'class="settings__nav"' in body
         assert 'href="/settings"' in body
+        assert 'href="/settings/linkedin"' in body
         assert 'href="/settings/filters"' in body
         assert 'href="/settings/deal-breakers"' in body
 
@@ -221,6 +225,7 @@ def test_the_sidebar_links_to_every_settings_page():
 def test_the_sidebar_marks_the_page_you_are_on():
     for path, label in (
         ("/settings", "General"),
+        ("/settings/linkedin", "Linkedin"),
         ("/settings/filters", "Filters"),
         ("/settings/deal-breakers", "Deal Breakers"),
     ):
@@ -342,9 +347,11 @@ def test_the_pages_carry_no_instructional_text():
     """The redesign keeps each form to fields and a Save button."""
     for path in ("/settings", "/settings/filters", "/settings/deal-breakers"):
         body = TestClient(app).get(path).text
-        assert "<textarea" not in body, path
         for marker in ('class="hint"', 'class="notice"', "restart", "Restart"):
             assert marker not in body, (path, marker)
+
+    # General stays a field list rather than the old free-text .env editor
+    assert "<textarea" not in TestClient(app).get("/settings").text
 
 
 # --- the filters section -------------------------------------------------
@@ -522,7 +529,7 @@ def test_deal_breakers_renders_one_card_per_item():
     # two loaded cards, plus the blank one every page ships inside <template>
     assert body.count('class="breaker"') == 3
     assert 'value="Remote"' in body
-    assert 'value="must be fully remote."' in body
+    assert "must be fully remote.</textarea>" in body
     assert 'value="Salary"' in body
 
 
@@ -624,6 +631,16 @@ def test_a_card_without_a_key_is_not_written():
     assert "- Kept: d" in written
 
 
+def test_the_example_score_is_a_select_showing_the_stored_value():
+    _seed_breakers()
+
+    body = TestClient(app).get("/settings/deal-breakers").text
+
+    assert '<select name="example_score"' in body
+    assert '<option value="0" selected>0</option>' in body
+    assert '<option value="2" selected>2</option>' in body
+
+
 def test_saving_the_loaded_state_leaves_the_file_unchanged():
     """Load then save must be a round trip - the page is an editor, not a rewrite."""
     _seed_breakers()
@@ -644,3 +661,207 @@ def test_deal_breakers_round_trip_through_the_page():
     body = client.get("/settings/deal-breakers").text
     assert 'value="PREFER REMOTE"' in body
     assert 'value="Range of 60,000 - 75,000."' in body
+
+
+# --- the linkedin section ------------------------------------------------
+
+SEARCH_DOCUMENT = {
+    "_legend": {
+        "_comment": "fixed value lists live here",
+        "work_type": ["onsite", "remote"],
+        "posted_within": ["day", "week"],
+    },
+    "searches": [
+        {"name": "backend-eu", "pages": 2, "params": {"keywords": "backend", "location": "EU", "work_type": "remote"}},
+        {"name": "dotnet-eu", "pages": 1, "params": {"keywords": ".NET", "location": "EU"}},
+    ],
+}
+
+
+def _seed_searches(document=None):
+    config.SEARCHES_PATH.write_text(json.dumps(document or SEARCH_DOCUMENT, indent=2), encoding="utf-8")
+
+
+def _written_searches():
+    return json.loads(config.SEARCHES_PATH.read_text(encoding="utf-8"))
+
+
+def test_linkedin_renders_one_card_per_search():
+    _seed_searches()
+
+    body = TestClient(app).get("/settings/linkedin").text
+
+    # two loaded cards, plus the blank one every page ships inside <template>
+    assert body.count('class="search-card"') == 3
+    assert 'value="backend-eu"' in body
+    assert 'value="dotnet-eu"' in body
+
+
+def test_a_legend_entry_becomes_a_dropdown_and_the_rest_stay_text():
+    _seed_searches()
+
+    body = TestClient(app).get("/settings/linkedin").text
+
+    assert '<select name="param_work_type"' in body
+    assert '<option value="onsite"' in body
+    assert '<option value="remote" selected>' in body
+    assert '<input type="text" name="param_keywords" value="backend"' in body
+
+
+def test_the_legend_comment_is_not_a_field():
+    _seed_searches()
+
+    body = TestClient(app).get("/settings/linkedin").text
+
+    assert "param__comment" not in body
+    assert ">_comment<" not in body
+
+
+def test_a_legend_key_no_search_uses_is_still_offered():
+    _seed_searches()
+
+    body = TestClient(app).get("/settings/linkedin").text
+
+    assert '<select name="param_posted_within"' in body
+
+
+def test_a_parameter_listed_in_multiple_renders_checkboxes():
+    _seed_searches(
+        {
+            "_legend": {"_multiple": ["experience_levels"], "experience_levels": ["entry", "senior"]},
+            "searches": [{"name": "s", "params": {}}],
+        }
+    )
+
+    body = TestClient(app).get("/settings/linkedin").text
+
+    # A native <select multiple> needs Ctrl-click, so several values get checkboxes.
+    assert '<input type="checkbox" name="param_experience_levels" value="entry">' in body
+    assert '<input type="checkbox" name="param_experience_levels" value="senior">' in body
+    assert '<select name="param_experience_levels"' not in body
+
+
+def test_a_chosen_value_shows_as_a_checked_box():
+    _seed_searches(
+        {
+            "_legend": {"_multiple": ["work_type"], "work_type": ["onsite", "remote"]},
+            "searches": [{"name": "s", "params": {"work_type": ["remote"]}}],
+        }
+    )
+
+    body = TestClient(app).get("/settings/linkedin").text
+
+    assert '<input type="checkbox" name="param_work_type" value="remote" checked>' in body
+    assert '<input type="checkbox" name="param_work_type" value="onsite">' in body
+
+
+def test_a_single_choice_parameter_is_still_a_dropdown():
+    _seed_searches(
+        {
+            "_legend": {"posted_within": ["day", "week"]},
+            "searches": [{"name": "s", "params": {"posted_within": "day"}}],
+        }
+    )
+
+    body = TestClient(app).get("/settings/linkedin").text
+
+    assert '<select name="param_posted_within">' in body
+    assert 'type="checkbox"' not in body
+
+
+def test_the_linkedin_page_is_the_last_sidebar_entry():
+    _seed_searches()
+
+    body = TestClient(app).get("/settings/linkedin").text
+
+    links = [
+        body.index('href="/settings"'),
+        body.index('href="/settings/filters"'),
+        body.index('href="/settings/deal-breakers"'),
+        body.index('href="/settings/linkedin"'),
+    ]
+    assert links == sorted(links)
+
+
+def test_saving_keeps_the_legend_and_replaces_the_searches():
+    _seed_searches()
+
+    response = _post_pairs(
+        TestClient(app, follow_redirects=False),
+        "/settings/linkedin",
+        [("name", "new-search"), ("pages", "3"), ("param_keywords", "go"), ("param_work_type", "onsite")],
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/settings/linkedin?saved=1"
+    document = _written_searches()
+    assert document["_legend"] == SEARCH_DOCUMENT["_legend"]
+    assert document["searches"] == [
+        {"name": "new-search", "pages": 3, "params": {"keywords": "go", "work_type": "onsite"}}
+    ]
+
+
+def test_saving_keeps_any_other_top_level_key():
+    _seed_searches({**SEARCH_DOCUMENT, "notes": "hand written"})
+
+    _post_pairs(TestClient(app), "/settings/linkedin", [("name", "s"), ("pages", "1")])
+
+    assert _written_searches()["notes"] == "hand written"
+
+
+def test_the_page_count_falls_back_to_one():
+    _post_pairs(TestClient(app), "/settings/linkedin", [("name", "s"), ("pages", "not a number")])
+
+    assert _written_searches()["searches"][0]["pages"] == 1
+
+
+def test_a_search_without_a_name_is_not_written():
+    _post_pairs(
+        TestClient(app),
+        "/settings/linkedin",
+        [("name", ""), ("pages", "2"), ("name", "kept"), ("pages", "1")],
+    )
+
+    assert [search["name"] for search in _written_searches()["searches"]] == ["kept"]
+
+
+def test_a_multi_valued_parameter_is_written_as_a_list():
+    """A multi-select posts the same field more than once."""
+    _post_pairs(
+        TestClient(app),
+        "/settings/linkedin",
+        [("name", "s"), ("param_experience_levels", "entry"), ("param_experience_levels", "senior")],
+    )
+
+    assert _written_searches()["searches"][0]["params"]["experience_levels"] == ["entry", "senior"]
+
+
+def test_a_blank_parameter_is_not_written():
+    _post_pairs(
+        TestClient(app),
+        "/settings/linkedin",
+        [("name", "s"), ("param_keywords", ""), ("param_location", "EU")],
+    )
+
+    assert _written_searches()["searches"][0]["params"] == {"location": "EU"}
+
+
+def test_the_searches_are_written_in_document_order():
+    _post_pairs(
+        TestClient(app),
+        "/settings/linkedin",
+        [("name", "second"), ("pages", "1"), ("name", "first"), ("pages", "1")],
+    )
+
+    assert [search["name"] for search in _written_searches()["searches"]] == ["second", "first"]
+
+
+def test_linkedin_round_trips_through_the_page():
+    _seed_searches()
+    client = TestClient(app)
+
+    _post_pairs(client, "/settings/linkedin", [("name", "saved-search"), ("pages", "2"), ("param_location", "EU")])
+
+    body = client.get("/settings/linkedin").text
+    assert 'value="saved-search"' in body
+    assert '<input type="text" name="param_location" value="EU"' in body

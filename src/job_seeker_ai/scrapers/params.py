@@ -1,6 +1,6 @@
 """LinkedIn's own search facet codes.
 
-``searches.json`` is written in friendly names so a human can edit it; the
+``job_sites/linkedin.json`` is written in friendly names so a human can edit it; the
 site only understands opaque codes like ``f_WT=2``. This module is the only
 place that knows the mapping, which is also what keeps the search definition
 file portable if a second site is ever added.
@@ -51,7 +51,7 @@ def translate_params(raw):
     """Friendly search params -> the site's own query params.
 
     Unknown keys pass through untouched, so extra query params can be
-    hand-added in searches.json without touching this code.
+    hand-added in the search document without touching this code.
     """
     out = {}
     for k, v in raw.items():

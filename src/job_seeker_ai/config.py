@@ -45,7 +45,9 @@ def _env_path(name: str, default: Path) -> Path:
 STATE_PATH = _env_path("STATE_PATH", PROJECT_ROOT / "state.json")
 
 # --- user configuration (hand-edited, versioned with the project) --------
-SEARCHES_PATH = _env_path("SEARCHES_PATH", PROJECT_ROOT / "searches.json")
+# One document per site under job_sites/: the searches the scrape step runs, plus
+# the _legend the review site builds its form from.
+SEARCHES_PATH = _env_path("SEARCHES_PATH", PROJECT_ROOT / "job_sites" / "linkedin.json")
 CRITERIA_DIR = _env_path("CRITERIA_DIR", PROJECT_ROOT / "criteria")
 
 MUST_WORDS_PATH = CRITERIA_DIR / "must_words.md"

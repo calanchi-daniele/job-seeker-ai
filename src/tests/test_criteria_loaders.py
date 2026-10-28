@@ -140,6 +140,16 @@ def test_format_drops_an_entirely_empty_sub_item():
     assert "- K:  -" not in text
 
 
+def test_a_multiline_field_is_flattened_onto_one_line():
+    """The description is a textarea, so a newline must not become a stray line."""
+    text = criteria_loaders.format_deal_breakers(
+        [{"key": "K", "description": "first line\nsecond line", "principles": [], "examples": []}]
+    )
+
+    assert "first line second line" in text
+    assert criteria_loaders.parse_deal_breakers(text)[0]["description"] == "first line second line"
+
+
 def test_the_shipped_deal_breakers_round_trip():
     """Load then save must leave the real file byte-identical, bar trailing spaces."""
     text = criteria_loaders.load_deal_breakers()

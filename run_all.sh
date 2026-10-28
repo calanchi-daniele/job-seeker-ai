@@ -20,15 +20,15 @@ source .venv/bin/activate
 # `pip install -e .` makes this unnecessary.
 export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}src"
 
-#python -m job_seeker_ai run "$@"
+python -m job_seeker_ai run "$@"
 echo
 echo "--- scrape done, running word filter ---"
 echo
-#python -m job_seeker_ai filter
+python -m job_seeker_ai filter
 echo
 echo "--- filter done, enriching pending jobs via the model API ---"
 echo
-#python -m job_seeker_ai enrich
+python -m job_seeker_ai enrich
 echo
 echo "--- enrichment done, serving the website, connect to http://localhost:8000 ---"
 echo

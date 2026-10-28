@@ -1,11 +1,12 @@
 """Review website: browse and triage scraped jobs, and edit the project's settings.
 
-The mutations are a job's status, the ``.env`` file and the two word lists. This is
-a separate optional process (``python -m job_seeker_ai serve``) and is deliberately
-not wired into the scrape or enrich runs - it can be served, restarted or dropped at
-any time without touching the pipeline.
+The mutations are a job's status, the ``.env`` file, the criteria files and the
+site's searches. This is a separate optional process
+(``python -m job_seeker_ai serve``) and is deliberately not wired into the scrape or
+enrich runs - it can be served, restarted or dropped at any time without touching the
+pipeline.
 
-Kept as a single module on purpose: ten endpoints do not need a router package.
+Kept as a single module on purpose: twelve endpoints do not need a router package.
 All SQL lives in ``repositories``; this module only translates HTTP into repository
 calls, file reads and template context.
 """
@@ -22,7 +23,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from job_seeker_ai import config, criteria_loaders, repositories
+from job_seeker_ai import config, criteria_loaders, job_sites, repositories
 from job_seeker_ai.storages import connect
 
 app = FastAPI(title="Job review")
@@ -35,6 +36,7 @@ NAV = (
     ("general", "General", "/settings"),
     ("filters", "Filters", "/settings/filters"),
     ("deal-breakers", "Deal Breakers", "/settings/deal-breakers"),
+    ("linkedin", "Linkedin", "/settings/linkedin"),
 )
 
 # General renders one input per key here, so adding a variable is an edit to this
@@ -320,3 +322,80 @@ async def save_deal_breakers(request: Request):
     items = _parse_breaker_form((await request.body()).decode("utf-8"))
     _write_atomically(config.DEAL_BREAKERS_PATH, criteria_loaders.format_deal_breakers(items))
     return RedirectResponse("/settings/deal-breakers?saved=1", status_code=303)
+
+
+# --- settings: linkedin searches -----------------------------------------
+
+# Cards are named by document order rather than by index, so a param input is
+# "param_<key>" and a "name" opens a new card.
+PARAM_PREFIX = "param_"
+
+
+def _page_count(value: str) -> int:
+    """Pages to scrape, at least one.
+
+    The form has nowhere to show an error and a string here would break the
+    adapter's ``range()``, so an unparseable entry falls back to the same default
+    ``load_searches`` uses when the key is missing.
+    """
+    try:
+        return max(1, int(value))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _parse_search_form(body: str) -> list[dict]:
+    """The posted cards, rebuilt into search entries.
+
+    ``parse_qsl`` rather than ``parse_qs``: a ``name`` opens a card and every field
+    after it belongs to that one until the next ``name``. A parameter that arrives
+    more than once - a multi-select - becomes a list, which is a shape
+    ``scrapers/params.py`` already accepts.
+    """
+    searches: list[dict] = []
+    current: dict | None = None
+
+    for field, value in parse_qsl(body, keep_blank_values=True):
+        if field == "name":
+            current = {"name": value.strip(), "pages": 1, "params": {}}
+            searches.append(current)
+            continue
+        if current is None:
+            continue
+        if field == "pages":
+            current["pages"] = _page_count(value)
+        elif field.startswith(PARAM_PREFIX) and value:
+            key = field[len(PARAM_PREFIX) :]
+            existing = current["params"].get(key)
+            if existing is None:
+                current["params"][key] = value
+            else:
+                current["params"][key] = (existing if isinstance(existing, list) else [existing]) + [value]
+
+    # A card the user added but never named cannot be scraped; drop it the way the
+    # other sections drop an empty row.
+    return [search for search in searches if search["name"]]
+
+
+@app.get("/settings/linkedin")
+def linkedin_page(request: Request, saved: bool = False):
+    """One card per search, its fields built from the file's ``_legend``."""
+    document = job_sites.load_document(missing_ok=True)
+    return templates.TemplateResponse(
+        request,
+        "settings_linkedin.html",
+        {
+            "nav": _nav("linkedin"),
+            "cards": job_sites.search_cards(document),
+            "blank": job_sites.blank_card(document),
+            "saved": saved,
+        },
+    )
+
+
+@app.post("/settings/linkedin")
+async def save_linkedin(request: Request):
+    """Replace the ``searches`` array, merging so ``_legend`` survives the write."""
+    items = _parse_search_form((await request.body()).decode("utf-8"))
+    _write_atomically(config.SEARCHES_PATH, job_sites.merge_searches(items))
+    return RedirectResponse("/settings/linkedin?saved=1", status_code=303)

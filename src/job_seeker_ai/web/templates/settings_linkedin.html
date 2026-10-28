@@ -1,0 +1,91 @@
+{% extends "settings_layout.html" %}
+
+{% macro trash_icon() -%}
+  <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">
+    <path fill="currentColor" d="M6.5 1.5h3a.5.5 0 0 1 .5.5v.5h2.75a.75.75 0 0 1 0 1.5H13v8.75A2.25 2.25 0 0 1 10.75 15h-5.5A2.25 2.25 0 0 1 3 12.75V4H2.25a.75.75 0 0 1 0-1.5H5V2a.5.5 0 0 1 .5-.5Zm-2 2.5v8.75c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75V4h-7Z"/>
+  </svg>
+{%- endmacro %}
+
+{#- A parameter the legend constrains becomes a dropdown of its allowed values, or a
+    row of checkboxes when `_legend._multiple` says it takes several: a native
+    <select multiple> needs Ctrl-click and reads as a single choice. Anything else
+    is free text. -#}
+{% macro field_row(field) -%}
+  {% if field.multiple and field.options %}
+    <div class="row">
+      <span class="row__key">{{ field.key }}</span>
+      <span class="choices">
+        {% for option in field.options %}
+          <label class="choice">
+            <input type="checkbox" name="param_{{ field.key }}" value="{{ option }}"{% if option in field.selected %} checked{% endif %}>
+            <span>{{ option }}</span>
+          </label>
+        {% endfor %}
+      </span>
+    </div>
+  {% else %}
+    <label class="row">
+      <span class="row__key">{{ field.key }}</span>
+      {% if field.options %}
+        <select name="param_{{ field.key }}">
+          <option value=""></option>
+          {% for option in field.options %}
+            <option value="{{ option }}"{% if option in field.selected %} selected{% endif %}>{{ option }}</option>
+          {% endfor %}
+        </select>
+      {% else %}
+        <input type="text" name="param_{{ field.key }}" value="{{ field.value }}" spellcheck="false" autocomplete="off">
+      {% endif %}
+    </label>
+  {% endif %}
+{%- endmacro %}
+
+{% macro search_card(card) -%}
+  <div class="search-card" data-row>
+    <div class="search-card__head">
+      <label class="row">
+        <span class="row__key">Key</span>
+        <input type="text" name="name" value="{{ card.name }}" spellcheck="false" autocomplete="off" aria-label="Search name">
+      </label>
+      <button type="button" class="icon icon--danger" data-remove aria-label="Remove this search" title="Remove">
+        {{ trash_icon() }}
+      </button>
+    </div>
+    <div class="rows">
+      <label class="row">
+        <span class="row__key">pages</span>
+        <input type="text" name="pages" value="{{ card.pages }}" spellcheck="false" autocomplete="off">
+      </label>
+      {% for field in card.fields %}
+        {{ field_row(field) }}
+      {% endfor %}
+    </div>
+  </div>
+{%- endmacro %}
+
+{% block section %}
+  <form method="post" action="/settings/linkedin">
+    <section id="linkedin">
+      <div data-group>
+        <div class="section-head">
+          <h2>Linkedin</h2>
+          <button type="button" class="icon icon--large" data-add aria-label="Add a search" title="Add">+</button>
+        </div>
+        <div class="search-rows" data-rows>
+          {% for card in cards %}
+            {{ search_card(card) }}
+          {% endfor %}
+        </div>
+        <template>{{ search_card(blank) }}</template>
+      </div>
+    </section>
+    <div class="actions">
+      {% if saved %}<span class="saved">Saved</span>{% endif %}
+      <button type="submit">Save</button>
+    </div>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/js/settings.js"></script>
+{% endblock %}

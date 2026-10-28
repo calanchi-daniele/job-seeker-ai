@@ -15,8 +15,8 @@ contract in [`scrapers/base.py`](src/job_seeker_ai/scrapers/base.py) — `SITE`,
 `REGISTRY`, which is what the CLI's `--site` flag resolves through.
 
 - A site with its own search-parameter vocabulary gets a mapping alongside
-  [`scrapers/params.py`](src/job_seeker_ai/scrapers/params.py), so `searches.json`
-  keeps using the same friendly names across every source.
+  [`scrapers/params.py`](src/job_seeker_ai/scrapers/params.py), so the search
+  documents keep using the same friendly names across every source.
 - The preflight in `services/scraping.py` is where a site that needs a different
   browser engine declares it, so each engine is installed once per run rather
   than once per site.
@@ -41,19 +41,14 @@ What is left sits around the call itself.
 
 ### Edit configuration from the browser
 
-The Markdown criteria files and `searches.json` are the pipeline's whole
-configuration surface, and they are edited on disk today. This brings that into
-the review site, so criteria can be tuned while looking at the postings they
-produced.
+The Markdown criteria files and the `job_sites/` search documents are the
+pipeline's whole configuration surface, and both are edited in the review site
+now. What is missing is feedback while editing.
 
-- Edit and save [`criteria/must_words.md`](criteria/must_words.md),
-  [`criteria/forbidden_words.md`](criteria/forbidden_words.md) and
-  [`criteria/deal_breakers.md`](criteria/deal_breakers.md) in place.
-- Edit [`searches.json`](searches.json) with its `_legend` values validated, so
-  a typo in `work_type` or `experience_levels` is caught at edit time rather
-  than during URL construction.
 - Show what the current word rules would accept or reject, so a change can be
   judged against real rows before it is saved.
+- Flag a search whose `params` use a value the `_legend` does not list, so a
+  hand-edited file cannot drift away from the dropdowns.
 
 ### Trigger pipeline steps from the browser
 

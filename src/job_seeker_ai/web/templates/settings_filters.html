@@ -7,7 +7,7 @@
 {%- endmacro %}
 
 {% macro filter_row(field, value) -%}
-  <div class="filter-row">
+  <div class="filter-row" data-row>
     <input type="text" name="{{ field }}" value="{{ value }}" spellcheck="false" autocomplete="off">
     <button type="button" class="icon icon--danger" data-remove aria-label="Remove this line" title="Remove">
       {{ trash_icon() }}
@@ -18,10 +18,12 @@
 {% block section %}
   <form method="post" action="/settings/filters">
     <section id="filters">
-      <h2>Filters</h2>
+      <div class="section-head">
+        <h2>Filters</h2>
+      </div>
       <div class="filter-columns">
         {% for column in filters %}
-          <div class="filter-column" data-list>
+          <div class="filter-column" data-group>
             <div class="filter-column__head">
               <h3>{{ column.title }}</h3>
               <button type="button" class="icon" data-add aria-label="Add a line to {{ column.title }}" title="Add">+</button>

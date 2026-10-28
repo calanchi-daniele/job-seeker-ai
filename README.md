@@ -98,19 +98,22 @@ Everything the tool needs to know about *you* is a plain file you edit by hand:
 | [`searches.json`](searches.json) | `{_legend, searches: [{name, pages, params}]}`. `keywords` and `location` are free text; `work_type`, `posted_within`, `employment_type` and `experience_levels` must use the exact values listed in the file's own `_legend`. |
 | [`criteria/must_words.md`](criteria/must_words.md) | One rule per line, `word OR word`. A job is rejected unless it matches at least one word on **every** line. |
 | [`criteria/forbidden_words.md`](criteria/forbidden_words.md) | One phrase per line. A job is rejected if any of them appears. |
-| [`criteria/deal_breakers.md`](criteria/deal_breakers.md) | Strict pass/fail rules — remote-from-Italy availability, minimum salary. Sent to the model as the prompt's criteria. |
+| [`criteria/deal_breakers.md`](criteria/deal_breakers.md) | Strict pass/fail rules — remote-from-Italy availability, minimum salary. A flat list plus two keyed sub-lists, sent to the model as the prompt's criteria. |
 | [`.env.example`](.env.example) | Every override: `STATE_PATH`, `SEARCHES_PATH`, `CRITERIA_DIR`, `JOBS_DB_PATH`, `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_MAX_CONCURRENCY`. Copy to `.env`, which is loaded at startup. |
 
 The two word lists are applied by cheap string matching with no model involved;
 only `deal_breakers.md` reaches the LLM.
 
 Both `.env` and the two word lists can be edited from the review site: `serve`, then
-open `/settings`, which is two pages behind a sidebar — **General** and **Filters**,
-each with its own Save. General is one input per variable — `LLM_API_KEY` masked — so
-the form is a direct view of the file; only the variables it lists are written back,
-so a key added by hand survives, though comments do not. Filters is a two-column list
-editor over `must_words.md` and `forbidden_words.md`, with add and remove per row. A
-saved value applies on the next process start, not to the one already running.
+Both `.env` and the three criteria files can be edited from the review site: `serve`,
+then open `/settings`, which is three pages behind a sidebar — **General**,
+**Filters** and **Deal Breakers** — each with its own Save. General is one input per
+variable — `LLM_API_KEY` masked — so the form is a direct view of the file; only the
+variables it lists are written back, so a key added by hand survives, though comments
+do not. Filters is a two-column list editor over `must_words.md` and
+`forbidden_words.md`. Deal Breakers is one card per rule, each with its own optional
+principles and examples lists. A saved value applies on the next process start, not
+to the one already running.
 
 `state.json` holds **live LinkedIn session cookies**. It is gitignored. Never
 commit it, attach it to an issue, or paste it into a screenshot.

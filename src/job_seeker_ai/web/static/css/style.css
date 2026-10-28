@@ -66,6 +66,8 @@ nav.site a:hover { text-decoration: underline; }
 .actions button { padding: .45rem 1.3rem; border: none; border-radius: 6px; background: #2d6cdf; color: #fff; cursor: pointer; font-size: .9em; }
 .actions button:hover { background: #1f56b8; }
 .saved { font-size: .85em; color: #14653a; }
+.section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .8rem; min-height: 32px;}
+.section-head h2 { margin: 0; }
 
 /* --- filters section --------------------------------------------------- */
 .filter-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; }
@@ -73,10 +75,42 @@ nav.site a:hover { text-decoration: underline; }
 .filter-column__head h3 { margin: 0; font-size: .78em; text-transform: uppercase; letter-spacing: .05em; color: #888; }
 .filter-rows { display: flex; flex-direction: column; gap: .4rem; }
 .filter-row { display: flex; align-items: center; gap: .35rem; }
-.filter-row input { flex: 1; min-width: 0; box-sizing: border-box; padding: .38rem .55rem; border: 1px solid #ddd; border-radius: 6px; font-size: .85em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.filter-row input:focus { outline: 2px solid #cfe0ff; border-color: #2d6cdf; }
+.filter-row input, .breaker input, .subrow input { flex: 1; min-width: 0; box-sizing: border-box; padding: .38rem .55rem; border: 1px solid #ddd; border-radius: 6px; font-size: .85em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.filter-row input:focus, .breaker input:focus, .subrow input:focus { outline: 2px solid #cfe0ff; border-color: #2d6cdf; }
 
 /* the + and trash buttons, sized to sit beside a text input */
 .icon { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 26px; height: 26px; padding: 0; border: 1px solid #ddd; border-radius: 6px; background: #fff; color: #555; font-size: 1em; line-height: 1; cursor: pointer; }
 .icon:hover { background: #eef1f5; color: #222; }
 .icon--danger:hover { background: #fdecec; border-color: #f3c3bf; color: #a4231c; }
+
+/* --- deal breakers section --------------------------------------------- */
+.breaker-rows { display: flex; flex-direction: column; gap: .8rem; }
+.breaker { display: flex; flex-direction: column; gap: .5rem; padding: .9rem 1rem; border: 1px solid #e6e7ea; border-radius: 9px; background: #fcfcfd; }
+.breaker__head { display: flex; align-items: center; gap: .35rem; }
+.breaker__head input { font-weight: 600; }
+.sublist { border-top: 1px dashed #e6e7ea; padding-top: .55rem; }
+.sublist__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .4rem; }
+.sublist__title { font-size: .74em; text-transform: uppercase; letter-spacing: .05em; color: #888; }
+.sublist__rows { display: flex; flex-direction: column; gap: .35rem; }
+.subrow { display: flex; align-items: center; gap: .35rem; }
+.inline-label { font-size: .85em; font-weight: 600; color: #555; }
+.breaker__field { display: flex; flex-direction: column; gap: .3rem; }
+.breaker__field.main-field { flex: 1; }
+.breaker__head { display: flex; align-items: flex-end; gap: .5rem; }
+.block-label { font-size: .75em; text-transform: uppercase; letter-spacing: .05em; color: #888; }
+.breaker textarea { box-sizing: border-box; padding: .38rem .55rem; border: 1px solid #ddd; border-radius: 6px; font-size: .85em; font-family: inherit; resize: vertical; line-height: 1.4; }
+.breaker textarea:focus { outline: 2px solid #cfe0ff; border-color: #2d6cdf; }
+.icon--large { width: 32px; height: 32px; font-size: 1.25em; font-weight: bold; }
+.icon--large svg { width: 18px; height: 18px; }
+.sublist { border-top: 1px dashed #e6e7ea; padding-top: .8rem; margin-top: 1rem; }
+.sublist__title { font-size: .85em; font-weight: bold; text-transform: uppercase; letter-spacing: .05em; color: #333; }
+.sublist__labels { display: flex; gap: 1.15rem; margin-bottom: .35rem; padding-left: .38rem }
+.sublist__labels span { font-size: .75em; text-transform: uppercase; letter-spacing: .05em; color: #888; text-align: left; }
+.subrow select { box-sizing: border-box; padding: .38rem .55rem; border: 1px solid #ddd; border-radius: 6px; font-size: .85em; font-family: inherit; background-color: #fff; }
+.subrow select:focus { outline: 2px solid #cfe0ff; border-color: #2d6cdf; }
+
+/* Updated Column Flex Weights */
+.subrow input.col-20, .sublist__labels span.col-20 { flex: 20; width: 0; }
+.subrow input.col-80, .sublist__labels span.col-80 { flex: 80; width: 0; }
+.subrow select.col-10, .subrow input.col-10, .sublist__labels span.col-10 { flex: 10; width: 0; }
+.subrow input.col-90, .sublist__labels span.col-90 { flex: 90; width: 0; }

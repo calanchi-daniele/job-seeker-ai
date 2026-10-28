@@ -1,0 +1,117 @@
+{% extends "settings_layout.html" %}
+
+{% macro trash_icon() -%}
+  <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">
+    <path fill="currentColor" d="M6.5 1.5h3a.5.5 0 0 1 .5.5v.5h2.75a.75.75 0 0 1 0 1.5H13v8.75A2.25 2.25 0 0 1 10.75 15h-5.5A2.25 2.25 0 0 1 3 12.75V4H2.25a.75.75 0 0 1 0-1.5H5V2a.5.5 0 0 1 .5-.5Zm-2 2.5v8.75c0 .414.336.75.75.75h5.5a.75.75 0 0 0 .75-.75V4h-7Z"/>
+  </svg>
+{%- endmacro %}
+
+{% macro remove_button(what, extra_class='') -%}
+  <button type="button" class="icon icon--danger {{ extra_class }}" data-remove aria-label="Remove this {{ what }}" title="Remove">
+    {{ trash_icon() }}
+  </button>
+{%- endmacro %}
+
+{% macro add_button(what, extra_class='') -%}
+  <button type="button" class="icon {{ extra_class }}" data-add aria-label="Add {{ what }}" title="Add">+</button>
+{%- endmacro %}
+
+{% macro principle_row(title, principle) -%}
+  <div class="subrow" data-row>
+    <input type="text" name="principle_title" value="{{ title }}" spellcheck="false" autocomplete="off" aria-label="Principle title" class="col-20">
+    <input type="text" name="principle_text" value="{{ principle }}" spellcheck="false" autocomplete="off" aria-label="Principle" class="col-80">
+    {{ remove_button('principle') }}
+  </div>
+{%- endmacro %}
+
+{% macro example_row(score, example) -%}
+  <div class="subrow" data-row>
+    <select name="example_score" class="col-10" aria-label="Score">
+      <option value="0" {% if score|string == '0' %}selected{% endif %}>Rejected</option>
+      <option value="1" {% if score|string == '1' %}selected{% endif %}>Uncertain</option>
+      <option value="2" {% if score|string == '2' %}selected{% endif %}>Approved</option>
+    </select>
+    <input type="text" name="example_text" value="{{ example }}" spellcheck="false" autocomplete="off" aria-label="Example" class="col-90">
+    {{ remove_button('example') }}
+  </div>
+{%- endmacro %}
+
+{% macro sublist(kind, label, title, items) -%}
+  <div class="sublist" data-group>
+    <div class="sublist__head">
+      <span class="sublist__title">{{ title }}</span>
+      {{ add_button(label) }}
+    </div>
+
+    <div class="sublist__labels">
+      {% if kind == 'principle' %}
+        <span class="col-20">Title</span>
+        <span class="col-80">Principle</span>
+      {% else %}
+        <span class="col-10">Score</span>
+        <span class="col-90">Example</span>
+      {% endif %}
+    </div>
+
+    <div class="sublist__rows" data-rows>
+      {% for item in items %}
+        {% if kind == 'principle' %}
+          {{ principle_row(item.title, item.principle) }}
+        {% else %}
+          {{ example_row(item.score, item.example) }}
+        {% endif %}
+      {% endfor %}
+    </div>
+    <template>
+      {% if kind == 'principle' %}{{ principle_row('', '') }}{% else %}{{ example_row('', '') }}{% endif %}
+    </template>
+  </div>
+{%- endmacro %}
+
+{% macro breaker_card(breaker) -%}
+  <div class="breaker" data-row>
+    <div class="breaker__head">
+      <div class="breaker__field main-field">
+        <label class="block-label">Key</label>
+        <input type="text" name="key" value="{{ breaker.key }}" spellcheck="false" autocomplete="off" aria-label="Deal breaker key">
+      </div>
+      {{ remove_button('deal breaker', 'icon--large') }}
+    </div>
+
+    <div class="breaker__field">
+      <label class="block-label">Description</label>
+      <!-- Changed rows to "2" -->
+      <textarea name="description" rows="2" spellcheck="false" autocomplete="off" aria-label="Description">{{ breaker.description }}</textarea>
+    </div>
+
+    {{ sublist('principle', 'an evaluation principle', 'Evaluation Principles', breaker.principles) }}
+    {{ sublist('example', 'an example', 'Examples', breaker.examples) }}
+  </div>
+{%- endmacro %}
+
+{% block section %}
+  <form method="post" action="/settings/deal-breakers">
+    <section id="deal-breakers">
+      <div data-group>
+        <div class="section-head">
+          <h2>Deal Breakers</h2>
+          {{ add_button('a deal breaker', 'icon--large') }}
+        </div>
+        <div class="breaker-rows" data-rows>
+          {% for breaker in deal_breakers %}
+            {{ breaker_card(breaker) }}
+          {% endfor %}
+        </div>
+        <template>{{ breaker_card({'key': '', 'description': '', 'principles': [], 'examples': []}) }}</template>
+      </div>
+    </section>
+    <div class="actions">
+      {% if saved %}<span class="saved">Saved</span>{% endif %}
+      <button type="submit">Save</button>
+    </div>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+  <script src="/static/js/settings.js"></script>
+{% endblock %}

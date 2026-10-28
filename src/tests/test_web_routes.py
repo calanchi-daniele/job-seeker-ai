@@ -14,7 +14,7 @@ from urllib.parse import urlencode  # noqa: E402
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from job_seeker_ai import config  # noqa: E402
+from job_seeker_ai import config, criteria_loaders  # noqa: E402
 from job_seeker_ai.web.app import app  # noqa: E402
 
 
@@ -201,29 +201,32 @@ def test_static_stylesheet_is_served(con):
 
 @pytest.fixture(autouse=True)
 def _throwaway_files(tmp_path, monkeypatch):
-    """The settings page writes three real files. Point all of them at a temp
+    """The settings pages write four real files. Point all of them at a temp
     directory so no test can touch the project's own .env or criteria."""
     monkeypatch.setattr(config, "ENV_PATH", tmp_path / ".env")
     monkeypatch.setattr(config, "MUST_WORDS_PATH", tmp_path / "must_words.md")
     monkeypatch.setattr(config, "FORBIDDEN_WORDS_PATH", tmp_path / "forbidden_words.md")
+    monkeypatch.setattr(config, "DEAL_BREAKERS_PATH", tmp_path / "deal_breakers.md")
 
 
-def test_the_sidebar_links_to_both_pages():
-    for path in ("/settings", "/settings/filters"):
+def test_the_sidebar_links_to_every_settings_page():
+    for path in ("/settings", "/settings/filters", "/settings/deal-breakers"):
         body = TestClient(app).get(path).text
         assert 'class="settings__nav"' in body
         assert 'href="/settings"' in body
         assert 'href="/settings/filters"' in body
+        assert 'href="/settings/deal-breakers"' in body
 
 
 def test_the_sidebar_marks_the_page_you_are_on():
-    general = TestClient(app).get("/settings").text
-    filters = TestClient(app).get("/settings/filters").text
-
-    assert general.count('class="is-active"') == 1
-    assert filters.count('class="is-active"') == 1
-    assert '<a href="/settings" class="is-active">General</a>' in general
-    assert '<a href="/settings/filters" class="is-active">Filters</a>' in filters
+    for path, label in (
+        ("/settings", "General"),
+        ("/settings/filters", "Filters"),
+        ("/settings/deal-breakers", "Deal Breakers"),
+    ):
+        body = TestClient(app).get(path).text
+        assert body.count('class="is-active"') == 1, path
+        assert f'<a href="{path}" class="is-active">{label}</a>' in body, path
 
 
 def test_the_two_pages_are_independent():
@@ -337,7 +340,7 @@ def test_the_write_target_is_fixed_and_never_taken_from_the_request(tmp_path):
 
 def test_the_pages_carry_no_instructional_text():
     """The redesign keeps each form to fields and a Save button."""
-    for path in ("/settings", "/settings/filters"):
+    for path in ("/settings", "/settings/filters", "/settings/deal-breakers"):
         body = TestClient(app).get(path).text
         assert "<textarea" not in body, path
         for marker in ('class="hint"', 'class="notice"', "restart", "Restart"):
@@ -405,7 +408,7 @@ def test_every_row_has_a_remove_button_and_both_columns_are_addressable():
 
     body = TestClient(app).get("/settings/filters").text
 
-    assert body.count('data-list') == 2
+    assert body.count('data-group') == 2
     assert body.count('data-rows') == 2
     # two seeded rows per column, plus the blank template row in each
     assert body.count("data-remove") == 6
@@ -415,7 +418,7 @@ def test_the_settings_script_is_served_and_wired_to_the_hooks():
     response = TestClient(app).get("/static/js/settings.js")
 
     assert response.status_code == 200
-    for hook in ("data-list", "data-rows", '"[data-add]"', '"[data-remove]"'):
+    for hook in ("data-group", "data-rows", '"[data-add]"', '"[data-remove]"'):
         assert hook in response.text, hook
 
 
@@ -473,3 +476,171 @@ def test_filters_round_trip_through_the_page():
     _post_lists(client, "/settings/filters", must_words=["round-trip-rule"])
 
     assert 'value="round-trip-rule"' in client.get("/settings/filters").text
+
+
+# --- the deal breakers section -------------------------------------------
+
+BREAKERS = """- Remote: must be fully remote.
+- Salary: at least 60k.
+
+--- GENERAL EVALUATION PRINCIPLES ---
+- Remote: PREFER REMOTE - prefer the most permissive option.
+
+--- EXAMPLES OF CORRECT SCORING ---
+- Remote: 0 - Requires residence in Spain.
+- Salary: 2 - Range of 60,000 - 75,000.
+"""
+
+
+def _seed_breakers(text=BREAKERS):
+    config.DEAL_BREAKERS_PATH.write_text(text, encoding="utf-8")
+
+
+def _post_pairs(client, url, pairs):
+    """Post fields in an explicit order: the nesting is carried by that order."""
+    body = urlencode(pairs)
+    return client.post(url, content=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
+
+
+def _pairs_for(items):
+    """The fields the page would submit for ``items``, in document order."""
+    pairs = []
+    for item in items:
+        pairs += [("key", item["key"]), ("description", item["description"])]
+        for principle in item["principles"]:
+            pairs += [("principle_title", principle["title"]), ("principle_text", principle["principle"])]
+        for example in item["examples"]:
+            pairs += [("example_score", example["score"]), ("example_text", example["example"])]
+    return pairs
+
+
+def test_deal_breakers_renders_one_card_per_item():
+    _seed_breakers()
+
+    body = TestClient(app).get("/settings/deal-breakers").text
+
+    # two loaded cards, plus the blank one every page ships inside <template>
+    assert body.count('class="breaker"') == 3
+    assert 'value="Remote"' in body
+    assert 'value="must be fully remote."' in body
+    assert 'value="Salary"' in body
+
+
+def test_deal_breakers_renders_the_sub_items_under_their_parent():
+    _seed_breakers()
+
+    body = TestClient(app).get("/settings/deal-breakers").text
+
+    assert 'value="PREFER REMOTE"' in body
+    assert 'value="prefer the most permissive option."' in body
+    assert 'value="Requires residence in Spain."' in body
+    assert 'value="Range of 60,000 - 75,000."' in body
+
+
+def test_each_deal_breaker_has_add_and_remove_controls_at_both_levels():
+    """One group per card and per sub-list; one add per group. The blank card lives
+    inside a <template> and carries its own two sub-templates, hence 7 of each."""
+    _seed_breakers()
+
+    body = TestClient(app).get("/settings/deal-breakers").text
+
+    assert body.count("data-add") == 7
+    assert body.count("data-group") == 7
+    assert body.count("<template>") == 7
+
+
+def test_an_empty_deal_breakers_file_still_renders_the_page():
+    body = TestClient(app).get("/settings/deal-breakers").text
+
+    # only the blank template card: the page is still usable with no file
+    assert body.count('class="breaker"') == 1
+    assert "data-add" in body
+
+
+def test_saving_deal_breakers_writes_the_flattened_format():
+    response = _post_pairs(
+        TestClient(app, follow_redirects=False),
+        "/settings/deal-breakers",
+        [
+            ("key", "Remote"),
+            ("description", "must be fully remote"),
+            ("principle_title", "PREFER"),
+            ("principle_text", "most permissive"),
+            ("example_score", "0"),
+            ("example_text", "residence in Spain"),
+            ("key", "Salary"),
+            ("description", "at least 60k"),
+            ("example_score", "2"),
+            ("example_text", "60,000 - 75,000"),
+        ],
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/settings/deal-breakers?saved=1"
+    assert config.DEAL_BREAKERS_PATH.read_text(encoding="utf-8") == (
+        "- Remote: must be fully remote\n"
+        "- Salary: at least 60k\n"
+        "\n"
+        "--- GENERAL EVALUATION PRINCIPLES ---\n"
+        "- Remote: PREFER - most permissive\n"
+        "\n"
+        "--- EXAMPLES OF CORRECT SCORING ---\n"
+        "- Remote: 0 - residence in Spain\n"
+        "- Salary: 2 - 60,000 - 75,000\n"
+    )
+
+
+def test_a_sub_item_joins_the_parent_it_follows():
+    _post_pairs(
+        TestClient(app),
+        "/settings/deal-breakers",
+        [
+            ("key", "A"),
+            ("description", ""),
+            ("example_score", "1"),
+            ("example_text", "a one"),
+            ("key", "B"),
+            ("description", ""),
+            ("example_score", "2"),
+            ("example_text", "b two"),
+        ],
+    )
+
+    written = config.DEAL_BREAKERS_PATH.read_text(encoding="utf-8")
+    assert "- A: 1 - a one" in written
+    assert "- B: 2 - b two" in written
+
+
+def test_a_card_without_a_key_is_not_written():
+    """It could not own sub-items on the way back in, so it is not persisted."""
+    _post_pairs(
+        TestClient(app),
+        "/settings/deal-breakers",
+        [("key", ""), ("description", "orphan"), ("key", "Kept"), ("description", "d")],
+    )
+
+    written = config.DEAL_BREAKERS_PATH.read_text(encoding="utf-8")
+    assert "orphan" not in written
+    assert "- Kept: d" in written
+
+
+def test_saving_the_loaded_state_leaves_the_file_unchanged():
+    """Load then save must be a round trip - the page is an editor, not a rewrite."""
+    _seed_breakers()
+    items = criteria_loaders.parse_deal_breakers(BREAKERS)
+
+    _post_pairs(TestClient(app), "/settings/deal-breakers", _pairs_for(items))
+
+    assert config.DEAL_BREAKERS_PATH.read_text(encoding="utf-8") == criteria_loaders.format_deal_breakers(items)
+
+
+def test_deal_breakers_round_trip_through_the_page():
+    _seed_breakers()
+    items = criteria_loaders.parse_deal_breakers(BREAKERS)
+    client = TestClient(app)
+
+    _post_pairs(client, "/settings/deal-breakers", _pairs_for(items))
+
+    body = client.get("/settings/deal-breakers").text
+    assert 'value="PREFER REMOTE"' in body
+    assert 'value="Range of 60,000 - 75,000."' in body

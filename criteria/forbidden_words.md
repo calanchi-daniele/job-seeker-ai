@@ -6,3 +6,4 @@ forward deployed
 body rental
 rockstar
 ninja
+crypto

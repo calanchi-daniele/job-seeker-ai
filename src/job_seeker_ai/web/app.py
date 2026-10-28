@@ -5,7 +5,7 @@ a separate optional process (``python -m job_seeker_ai serve``) and is deliberat
 not wired into the scrape or enrich runs - it can be served, restarted or dropped at
 any time without touching the pipeline.
 
-Kept as a single module on purpose: eight endpoints do not need a router package.
+Kept as a single module on purpose: ten endpoints do not need a router package.
 All SQL lives in ``repositories``; this module only translates HTTP into repository
 calls, file reads and template context.
 """
@@ -14,7 +14,7 @@ import contextlib
 import os
 import tempfile
 from pathlib import Path
-from urllib.parse import parse_qs, urlencode
+from urllib.parse import parse_qs, parse_qsl, urlencode
 
 from dotenv import dotenv_values
 from fastapi import FastAPI, Request
@@ -22,7 +22,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from job_seeker_ai import config, repositories
+from job_seeker_ai import config, criteria_loaders, repositories
 from job_seeker_ai.storages import connect
 
 app = FastAPI(title="Job review")
@@ -34,6 +34,7 @@ app.mount("/static", StaticFiles(directory=str(config.STATIC_DIR)), name="static
 NAV = (
     ("general", "General", "/settings"),
     ("filters", "Filters", "/settings/filters"),
+    ("deal-breakers", "Deal Breakers", "/settings/deal-breakers"),
 )
 
 # General renders one input per key here, so adding a variable is an edit to this
@@ -255,3 +256,67 @@ async def save_filters(request: Request):
     for field, _title, path in _filter_lists():
         _write_atomically(path, _text_for_rule_lines(submitted.get(field, [])))
     return RedirectResponse("/settings/filters?saved=1", status_code=303)
+
+
+# --- settings: deal breakers ---------------------------------------------
+
+
+def _parse_breaker_form(body: str) -> list[dict]:
+    """The posted fields, rebuilt into nested deal breakers.
+
+    ``parse_qsl`` rather than ``parse_qs``: the nesting is carried by the *order* of
+    the fields, not by their names. A ``key`` opens a deal breaker, and every
+    sub-item field after it belongs to that one until the next ``key`` - which is
+    also why the inputs keep plain names and the page needs no index bookkeeping.
+    """
+    items: list[dict] = []
+    current: dict | None = None
+    principle: dict | None = None
+    example: dict | None = None
+
+    for name, value in parse_qsl(body, keep_blank_values=True):
+        if name == "key":
+            current = {"key": value, "description": "", "principles": [], "examples": []}
+            items.append(current)
+            principle = example = None
+            continue
+        if current is None:
+            # A sub-item before any key has no parent to join; drop it.
+            continue
+
+        if name == "description":
+            current["description"] = value
+        elif name == "principle_title":
+            principle = {"title": value, "principle": ""}
+            current["principles"].append(principle)
+        elif name == "principle_text" and principle is not None:
+            principle["principle"] = value
+        elif name == "example_score":
+            example = {"score": value, "example": ""}
+            current["examples"].append(example)
+        elif name == "example_text" and example is not None:
+            example["example"] = value
+
+    return items
+
+
+@app.get("/settings/deal-breakers")
+def deal_breakers_page(request: Request, saved: bool = False):
+    """One card per deal breaker, each with its principles and examples."""
+    return templates.TemplateResponse(
+        request,
+        "settings_deal_breakers.html",
+        {
+            "nav": _nav("deal-breakers"),
+            "deal_breakers": criteria_loaders.load_deal_breaker_items(),
+            "saved": saved,
+        },
+    )
+
+
+@app.post("/settings/deal-breakers")
+async def save_deal_breakers(request: Request):
+    """Rewrite the deal-breaker file from the submitted cards, in one flat pass."""
+    items = _parse_breaker_form((await request.body()).decode("utf-8"))
+    _write_atomically(config.DEAL_BREAKERS_PATH, criteria_loaders.format_deal_breakers(items))
+    return RedirectResponse("/settings/deal-breakers?saved=1", status_code=303)

@@ -2,7 +2,9 @@
 {% block section %}
   <form method="post" action="/settings">
     <section id="general">
-      <h2>General</h2>
+      <div class="section-head">
+        <h2>General</h2>
+      </div>
       <div class="rows">
         {% for field in fields %}
           <label class="row">

@@ -26,6 +26,8 @@ is deliberately **not** meant to be reachable from a network.
 | POST | `/settings` | write `.env` |
 | GET | `/settings/filters` | Filters: the two word lists |
 | POST | `/settings/filters` | write both word lists |
+| GET | `/settings/deal-breakers` | Deal Breakers: nested cards |
+| POST | `/settings/deal-breakers` | write `deal_breakers.md` |
 | GET | `/static/...` | stylesheet and script |
 
 An unknown `job_id` on the detail route is not a 404: it redirects (303) back
@@ -166,20 +168,68 @@ Each row input carries its column's name (`must_words` / `forbidden_words`), so 
 form posts one list per column and the server needs no index fields. That is also
 why the script only has to clone and remove DOM nodes: order is document order.
 
+### Deal Breakers
+
+The third section edits `criteria/deal_breakers.md`, one **card per rule**, and is
+the only one with nested lists:
+
+| Row | Fields |
+|---|---|
+| core (mandatory) | `key` and `description` |
+| Evaluation Principles (optional) | `title` and `principle`, one row each |
+| Examples (optional) | `score` and `example`, one row each |
+
+`+` adds a card, and each card has its own `+` on both sub-lists; every row has a
+trash button. All of it runs through the same `static/js/settings.js` as Filters —
+one delegated handler, driven by `data-group` / `data-rows` / `data-row`, so a card
+and a sub-item inside it are removable by the same code.
+
+**The file stays flat.** `parse_deal_breakers` and `format_deal_breakers` in
+`criteria_loaders.py` are the only code that understands the mapping, so the page
+and the LLM prompt cannot drift apart:
+
+```
+- (key): (description)
+...
+
+--- GENERAL EVALUATION PRINCIPLES ---
+- (key): (title) - (principle)
+...
+
+--- EXAMPLES OF CORRECT SCORING ---
+- (key): (score) - (example)
+```
+
+The **key is the join**: a sub-item belongs to the deal breaker whose key it
+repeats, which is why keys have to be unique within a file. Notes on the edges:
+
+- A sub-item's text splits on the **first** ` - ` only, so an example like
+  `60,000 - 75,000` keeps its own dash.
+- A sub-item with no matching parent becomes a card with an empty description
+  rather than being dropped.
+- A card with **no key** is skipped on save — it could not own sub-items on the way
+  back in.
+- Only lines starting with `- ` are data. Any other line is ignored on load and
+  therefore gone on the next save, so hand-edit the file in this form.
+
+`saving the loaded state changes nothing` is a test, and it runs against the real
+shipped file as well as a fixture.
+
 ## Structure
 
-One module, `src/job_seeker_ai/web/app.py`, eight routes, plus:
+One module, `src/job_seeker_ai/web/app.py`, ten routes, plus:
 
 - `templates/base.html` — shared `<head>`, stylesheet link and a `scripts` block
 - `templates/settings_layout.html` — the settings sidebar and the content card,
   with a `section` block each page fills in
-- `templates/settings_general.html`, `templates/settings_filters.html` — one per
-  settings page
+- `templates/settings_general.html`, `templates/settings_filters.html`,
+  `templates/settings_deal_breakers.html` — one per settings page
 - `templates/jobs.html`, `templates/job_detail.html` — `{% extends %}` the base
 - `static/css/style.css` — one stylesheet, previously inlined twice in both
   templates
-- `static/js/settings.js` — the only script: add and remove rows in Filters. It is
-  listed in `package-data` in `pyproject.toml`, so an installed wheel ships it
+- `static/js/settings.js` — the only script: add and remove rows in Filters and
+  Deal Breakers. It is listed in `package-data` in `pyproject.toml`, so an
+  installed wheel ships it
 
 All SQL lives in `repositories.py`. The route functions only translate HTTP
 into repository calls and hand the results to a template.

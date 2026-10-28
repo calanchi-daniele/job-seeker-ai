@@ -10,8 +10,9 @@ python -m job_seeker_ai serve                  # http://127.0.0.1:8000
 python -m job_seeker_ai serve --port 9000 --reload
 ```
 
-Binds to `127.0.0.1` by default. It has no authentication and exposes status
-writes, so it is deliberately **not** meant to be reachable from a network.
+Binds to `127.0.0.1` by default. It has no authentication, and it exposes status
+writes and the project's `.env` — the model API key included — so it
+is deliberately **not** meant to be reachable from a network.
 
 ## Routes
 
@@ -21,6 +22,8 @@ writes, so it is deliberately **not** meant to be reachable from a network.
 | GET | `/jobs/{job_id}` | full detail for one job |
 | POST | `/jobs/{job_id}/invalidate` | set status `invalidated` |
 | POST | `/jobs/{job_id}/reactivate` | set status `active` |
+| GET | `/settings` | the settings form |
+| POST | `/settings` | write `.env` |
 | GET | `/static/...` | stylesheet |
 
 An unknown `job_id` on the detail route is not a 404: it redirects (303) back
@@ -91,12 +94,57 @@ tr.invalidated, tr.rejected { opacity: 0.45; }
 Rejected and invalidated rows stay in the list, greyed out, so you can audit
 the filter rules against real postings.
 
+## Settings page
+
+`/settings` is a two-column layout: a sidebar naming the sections on the left, the
+form for the selected one on the right. There is one section — **General** — and
+both the sidebar and the form are generated from `SECTIONS` in `web/app.py`, so a
+second section is a tuple to add rather than template surgery.
+
+General renders **one input per managed `.env` key**, so the form is a direct view
+of the file rather than free text:
+
+| Keys | Input |
+|---|---|
+| `STATE_PATH`, `SEARCHES_PATH`, `CRITERIA_DIR`, `JOBS_DB_PATH` | text |
+| `LLM_BASE_URL`, `LLM_MODEL`, `LLM_MAX_CONCURRENCY` | text |
+| `LLM_API_KEY` | `type="password"` — the value reads as dots |
+
+The page carries no help text: the sidebar, the field labels and a **Save** button
+are the whole UI. `LI_EMAIL` and `LI_PASSWORD` are gone — `login` is a hand sign-in,
+and nothing reads credentials from the environment any more.
+
+Behaviour worth knowing:
+
+- **Values come from the file, not from the running process**, so the form shows
+  what the next start will read even when that differs from what is loaded now.
+- **Only the managed keys are written back.** A key the page does not know about is
+  carried over unchanged, so a line added by hand is never silently dropped.
+- **The path is fixed** (`config.ENV_PATH`) and never read from the request, and
+  only managed keys are read from the body — a form field can neither introduce a
+  variable nor aim the write at another file.
+- **It is written atomically**, to a sibling temp file that is then moved into
+  place, so a crash mid-save cannot truncate the file. `mkstemp` also means it
+  lands as `0600` instead of inheriting a permissive umask.
+- **Nothing takes effect until a restart.** `config.py` resolves the environment
+  once at import, so the running `serve` — and every other step — keeps the values
+  it started with.
+- **Comments do not survive a save.** The file is rewritten as one `KEY=value` line
+  per managed key; `.env.example` stays the place where the explanation lives.
+- **The API key is masked on screen but still carried in the input's `value`**, so
+  saving without retyping keeps it. That is a trade-off the loopback-only,
+  unauthenticated binding is what makes acceptable.
+
+The body is parsed with `urllib.parse.parse_qs` rather than FastAPI's `Form`, which
+would pull in `python-multipart` for the sake of one form.
+
 ## Structure
 
-One module, `src/job_seeker_ai/web/app.py`, four routes, plus:
+One module, `src/job_seeker_ai/web/app.py`, six routes, plus:
 
 - `templates/base.html` — shared `<head>` and stylesheet link
-- `templates/jobs.html`, `templates/job_detail.html` — `{% extends %}` the base
+- `templates/jobs.html`, `templates/job_detail.html`, `templates/settings.html` —
+  `{% extends %}` the base
 - `static/css/style.css` — one stylesheet, previously inlined twice in both
   templates
 
@@ -109,8 +157,10 @@ into repository calls and hand the results to a template.
   and a pool. Fine for a single local user; it would be the first thing to
   change if this ever served more than one.
 - `src/tests/test_web_routes.py` covers the list page, ordering, filters, detail
-  page, static asset and both status mutations. Those tests skip themselves if
-  the `web` extra is not installed (`pip install -e ".[dev]"` installs it).
+  page, static asset, both status mutations and the settings form. Those tests
+  skip themselves if the `web` extra is not installed (`pip install -e ".[dev]"`
+  installs it), and they point `config.ENV_PATH` at a temp file so a run can never
+  write the real one.
 - A `jobs.db` created before the schema was slimmed still carries six unused
   columns. Nothing reads them and serving works fine, but they only disappear
   from a freshly created database.

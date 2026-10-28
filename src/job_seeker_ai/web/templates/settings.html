@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Settings &mdash; Job review{% endblock %}
+{% block content %}
+  <div class="settings">
+    <nav class="settings__nav">
+      <h1>Settings</h1>
+      <ul>
+        {% for section in sections %}
+          <li><a class="is-active" href="#{{ section.slug }}">{{ section.title }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+
+    <form class="settings__body" method="post" action="/settings">
+      {% for section in sections %}
+        <section id="{{ section.slug }}">
+          <h2>{{ section.title }}</h2>
+          <div class="rows">
+            {% for field in section.fields %}
+              <label class="row">
+                <span class="row__key">{{ field.key }}</span>
+                <input type="{{ 'password' if field.secret else 'text' }}" name="{{ field.key }}"
+                       value="{{ field.value }}" spellcheck="false" autocomplete="off">
+              </label>
+            {% endfor %}
+          </div>
+        </section>
+      {% endfor %}
+
+      <div class="actions">
+        <button type="submit">Save</button>
+        {% if saved %}<span class="saved">Saved</span>{% endif %}
+      </div>
+    </form>
+  </div>
+{% endblock %}

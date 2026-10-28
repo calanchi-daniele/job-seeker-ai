@@ -99,10 +99,16 @@ Everything the tool needs to know about *you* is a plain file you edit by hand:
 | [`criteria/must_words.md`](criteria/must_words.md) | One rule per line, `word OR word`. A job is rejected unless it matches at least one word on **every** line. |
 | [`criteria/forbidden_words.md`](criteria/forbidden_words.md) | One phrase per line. A job is rejected if any of them appears. |
 | [`criteria/deal_breakers.md`](criteria/deal_breakers.md) | Strict pass/fail rules — remote-from-Italy availability, minimum salary. Sent to the model as the prompt's criteria. |
-| [`.env.example`](.env.example) | Every override: `LI_EMAIL`, `LI_PASSWORD`, `JOBS_DB_PATH`, `CRITERIA_DIR`, `STATE_PATH`, `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_MAX_CONCURRENCY`. Copy to `.env`, which is loaded at startup. |
+| [`.env.example`](.env.example) | Every override: `STATE_PATH`, `SEARCHES_PATH`, `CRITERIA_DIR`, `JOBS_DB_PATH`, `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_MAX_CONCURRENCY`. Copy to `.env`, which is loaded at startup. |
 
 The two word lists are applied by cheap string matching with no model involved;
 only `deal_breakers.md` reaches the LLM.
+
+`.env` can also be written from the review site: `serve`, then open `/settings`.
+The General section is one input per variable — `LLM_API_KEY` masked — so the form
+is a direct view of the file. Only the variables it lists are written back, so a
+key added by hand survives, though comments do not. A saved value applies on the
+next process start, not to the one already running.
 
 `state.json` holds **live LinkedIn session cookies**. It is gitignored. Never
 commit it, attach it to an issue, or paste it into a screenshot.
@@ -176,7 +182,8 @@ compromises made on purpose, is in [docs/architecture.md](docs/architecture.md).
   for fields that no longer match, so a broken selector shows up as missing data
   rather than an error.
 - The review site is unauthenticated and binds to `127.0.0.1`. It exposes status
-  writes, so it is not meant to be reachable over a network.
+  writes and the settings form — which means the model API key — so it is not meant
+  to be reachable over a network.
 - The criteria are personal. `must_words.md` and `deal_breakers.md` in particular
   encode one specific person's requirements — treat them as examples of the
   format, not as sensible defaults.

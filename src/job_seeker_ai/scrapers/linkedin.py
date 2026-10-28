@@ -16,7 +16,6 @@ hangs the whole run.
 
 import asyncio
 import logging
-import os
 import urllib.parse
 from datetime import datetime, timezone
 
@@ -57,11 +56,6 @@ async def login():
 
         page = await context.new_page()
         await page.goto("https://www.linkedin.com/login")
-        email, pw = os.getenv("LI_EMAIL"), os.getenv("LI_PASSWORD")
-        if email and pw:
-            await page.fill("#username", email)
-            await page.fill("#password", pw)
-            await page.click("button[type=submit]")
 
         # Run blocking input in a thread so it doesn't freeze the event loop.
         await asyncio.to_thread(input, "Sign in (solve any checkpoint/2FA), then press Enter here...")

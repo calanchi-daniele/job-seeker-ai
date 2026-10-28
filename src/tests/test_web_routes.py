@@ -12,6 +12,7 @@ pytest.importorskip("httpx", reason="web extra not installed (pip install -e .[d
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from job_seeker_ai import config  # noqa: E402
 from job_seeker_ai.web.app import app  # noqa: E402
 
 
@@ -191,3 +192,127 @@ def test_static_stylesheet_is_served(con):
     response = TestClient(app).get("/static/css/style.css")
     assert response.status_code == 200
     assert "font-family" in response.text
+
+
+# --- the settings page ---------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _throwaway_env_file(tmp_path, monkeypatch):
+    """The settings form writes files, and the real .env is gitignored but real.
+    Point it at a temp directory so no test can touch the project's own."""
+    monkeypatch.setattr(config, "ENV_PATH", tmp_path / ".env")
+
+
+def test_settings_renders_the_sidebar_and_the_general_section():
+    body = TestClient(app).get("/settings").text
+
+    assert 'class="settings__nav"' in body
+    assert ">General<" in body
+
+
+def test_settings_renders_one_input_per_managed_key():
+    body = TestClient(app).get("/settings").text
+
+    for key in (
+        "STATE_PATH",
+        "SEARCHES_PATH",
+        "CRITERIA_DIR",
+        "JOBS_DB_PATH",
+        "LLM_BASE_URL",
+        "LLM_API_KEY",
+        "LLM_MODEL",
+        "LLM_MAX_CONCURRENCY",
+    ):
+        assert f'name="{key}"' in body, key
+
+
+def test_the_api_key_is_masked():
+    """A password input, so the value reads as dots rather than in the clear."""
+    body = TestClient(app).get("/settings").text
+
+    assert 'type="password" name="LLM_API_KEY"' in body
+    assert 'type="text" name="LLM_API_KEY"' not in body
+
+
+def test_nothing_else_is_masked():
+    body = TestClient(app).get("/settings").text
+
+    assert body.count('type="password"') == 1
+
+
+def test_the_login_credentials_are_gone_from_the_page():
+    """LI_EMAIL and LI_PASSWORD were removed from the app, not merely hidden."""
+    body = TestClient(app).get("/settings").text
+
+    assert "LI_EMAIL" not in body
+    assert "LI_PASSWORD" not in body
+
+
+def test_settings_shows_the_values_already_on_disk():
+    config.ENV_PATH.write_text("LLM_MODEL=on-disk\n", encoding="utf-8")
+
+    body = TestClient(app).get("/settings").text
+
+    assert 'value="on-disk"' in body
+
+
+def test_saving_writes_one_line_per_managed_key():
+    client = TestClient(app, follow_redirects=False)
+
+    response = client.post("/settings", data={"LLM_BASE_URL": "https://api.example.test/v1", "LLM_MODEL": "m"})
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/settings?saved=1"
+    assert config.ENV_PATH.read_text(encoding="utf-8").splitlines() == [
+        "STATE_PATH=",
+        "SEARCHES_PATH=",
+        "CRITERIA_DIR=",
+        "JOBS_DB_PATH=",
+        "LLM_BASE_URL=https://api.example.test/v1",
+        "LLM_API_KEY=",
+        "LLM_MODEL=m",
+        "LLM_MAX_CONCURRENCY=",
+    ]
+
+
+def test_saving_round_trips_through_the_page():
+    client = TestClient(app)
+
+    client.post("/settings", data={"LLM_MODEL": "round-trip"})
+
+    assert 'value="round-trip"' in client.get("/settings").text
+
+
+def test_a_key_the_page_does_not_manage_is_carried_over():
+    """The form shows only this project's variables; a hand-added line survives."""
+    config.ENV_PATH.write_text("MY_OWN_KEY=keep-me\n", encoding="utf-8")
+
+    TestClient(app).post("/settings", data={"LLM_MODEL": "m"})
+
+    assert "MY_OWN_KEY=keep-me" in config.ENV_PATH.read_text(encoding="utf-8")
+
+
+def test_the_form_cannot_introduce_a_variable():
+    TestClient(app).post("/settings", data={"LLM_MODEL": "m", "EVIL": "1"})
+
+    assert "EVIL" not in config.ENV_PATH.read_text(encoding="utf-8")
+
+
+def test_the_write_target_is_fixed_and_never_taken_from_the_request(tmp_path):
+    """A form field must not be able to point the write somewhere else."""
+    elsewhere = tmp_path / "somewhere-else.env"
+
+    TestClient(app).post("/settings", data={"LLM_MODEL": "m", "path": str(elsewhere), "env_path": str(elsewhere)})
+
+    assert not elsewhere.exists()
+    assert config.ENV_PATH.exists()
+
+
+def test_the_page_carries_no_instructional_text():
+    """The redesign keeps the form to fields and a Save button."""
+    body = TestClient(app).get("/settings").text
+
+    assert "<textarea" not in body
+    for marker in ('class="hint"', 'class="notice"', "restart", "Restart"):
+        assert marker not in body, marker

@@ -42,3 +42,27 @@ h2.company { margin: 0 0 1rem; font-weight: normal; color: #555; }
 .field dt { font-size: .8em; text-transform: uppercase; letter-spacing: .04em; color: #888; margin-bottom: .2rem; }
 .field dd { margin: 0; white-space: pre-wrap; }
 a.url { word-break: break-all; }
+
+/* --- site navigation --------------------------------------------------- */
+nav.site { display: flex; gap: 1.2rem; margin-bottom: 1.2rem; font-size: .9em; }
+nav.site a { color: #2d6cdf; text-decoration: none; }
+nav.site a:hover { text-decoration: underline; }
+
+/* --- settings page ----------------------------------------------------- */
+.settings { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 2rem; align-items: start; }
+.settings__nav h1 { margin: 0 0 .8rem; font-size: .78em; text-transform: uppercase; letter-spacing: .07em; color: #888; }
+.settings__nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .2rem; }
+.settings__nav a { display: block; padding: .45rem .7rem; border-radius: 7px; color: #333; text-decoration: none; font-size: .92em; }
+.settings__nav a:hover { background: #eef1f5; }
+.settings__nav a.is-active { background: #e8f0fe; color: #1f56b8; font-weight: 600; }
+.settings__body { background: #fff; border-radius: 10px; padding: 1.2rem 1.5rem 1.5rem; max-width: 760px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.settings__body h2 { margin: 0 0 1rem; font-size: 1.05rem; }
+.rows { display: flex; flex-direction: column; gap: .55rem; }
+.row { display: grid; grid-template-columns: 215px minmax(0, 1fr); gap: 1rem; align-items: center; }
+.row__key { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8em; color: #555; }
+.row input { width: 100%; box-sizing: border-box; padding: .4rem .6rem; border: 1px solid #ddd; border-radius: 6px; font-size: .86em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.row input:focus { outline: 2px solid #cfe0ff; border-color: #2d6cdf; }
+.actions { display: flex; align-items: center; gap: .8rem; }
+.actions button { padding: .45rem 1.3rem; border: none; border-radius: 6px; background: #2d6cdf; color: #fff; cursor: pointer; font-size: .9em; }
+.actions button:hover { background: #1f56b8; }
+.saved { font-size: .85em; color: #14653a; }

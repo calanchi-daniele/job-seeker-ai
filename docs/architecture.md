@@ -34,7 +34,7 @@ job_seeker_ai/
 │   │   │   ├── filtering.py   word filter over the database
 │   │   │   └── enrichment.py  LLM pass over pending jobs
 │   │   └── web/
-│   │       ├── app.py         FastAPI app (one module, four routes)
+│   │       ├── app.py         FastAPI app (one module, six routes)
 │   │       ├── templates/
 │   │       └── static/css/
 │   └── tests/
@@ -95,7 +95,7 @@ Both are noted rather than hidden:
    1-function-per-query module of ~200 lines; splitting it into four modules
    would add imports without adding clarity. If it grows past that, split by
    the section comments.
-2. **`web/app.py` is a single module.** Four endpoints do not justify a router
+2. **`web/app.py` is a single module.** Six endpoints do not justify a router
    package. The SQL separation still applies: the one ordering the list uses
    lives in `repositories.list_jobs`.
 
@@ -142,7 +142,6 @@ call to `prepare()`, not touching the adapter contract.
 | `LLM_API_KEY` | *(required)* | the credential for that endpoint |
 | `LLM_MODEL` | *(required)* | a model id the endpoint understands |
 | `LLM_MAX_CONCURRENCY` | `1` | evaluations in flight at once during enrichment |
-| `LI_EMAIL` / `LI_PASSWORD` | unset | optional login pre-fill |
 
 A `.env` at the project root is loaded at import, before any override is read; a
 variable exported in the real environment wins over the file. Paths resolve
